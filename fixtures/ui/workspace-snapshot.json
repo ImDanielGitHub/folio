@@ -1,0 +1,73 @@
+{
+  "snapshotVersion": "api.snapshot@1",
+  "snapshotId": "snap_koru_after_close",
+  "workspace": {
+    "workspaceId": "ws_koru_studio",
+    "name": "Koru Studio",
+    "entityType": "nz_sole_trader",
+    "currency": "NZD",
+    "timezone": "Pacific/Auckland",
+    "protectedReserveMinor": 200000
+  },
+  "thread": {
+    "threadId": "thr_koru_studio_main",
+    "turns": [
+      {
+        "turnId": "turn_koru_morning_close",
+        "role": "agent",
+        "content": "Morning close is complete. I held out one likely duplicate, found one expense that needs context, and the planned laptop takes cash NZD 99.23 below your protected reserve.",
+        "occurredAt": "2026-07-17T08:00:04+12:00",
+        "status": "complete",
+        "evidenceIds": ["evd_koru_bank_csv", "evd_koru_mitre10_row", "evd_koru_figma_pending", "evd_koru_forecast_30d"]
+      }
+    ],
+    "activeQuestion": null
+  },
+  "currentSurface": {
+    "specVersion": "FinanceSurfaceSpec@1",
+    "surfaceId": "surface_koru_living_brief",
+    "surfaceType": "living_brief",
+    "title": "Morning close",
+    "subtitle": "Three items need your attention",
+    "freshness": { "dataThrough": "2026-07-17T08:00:00+12:00", "status": "current", "timezone": "Pacific/Auckland" },
+    "blocks": [
+      { "blockId": "block_koru_current_balance", "type": "metric", "label": "Cleared balance", "valueMinor": 504576, "currency": "NZD", "evidenceIds": ["evd_koru_bank_csv"] },
+      { "blockId": "block_koru_projected_low", "type": "metric", "label": "Projected 30-day low", "valueMinor": 190077, "currency": "NZD", "evidenceIds": ["evd_koru_forecast_30d"] },
+      { "blockId": "block_koru_reserve_risk", "type": "finding", "findingId": "finding_koru_reserve_risk", "severity": "critical", "title": "Protected reserve is at risk", "summary": "The projected low is NZD 99.23 below the reserve.", "amountMinor": 9923, "currency": "NZD", "status": "open", "evidenceIds": ["evd_koru_forecast_30d"] }
+    ],
+    "actions": [
+      { "actionId": "act_koru_show_cash", "type": "run_scenario", "label": "Explore cash risk", "scenarioId": "scenario_koru_laptop" },
+      { "actionId": "act_koru_open_activity", "type": "open_drawer", "label": "Open activity", "drawer": "activity" }
+    ]
+  },
+  "findings": [
+    { "findingId": "finding_koru_missing_receipt", "kind": "missing_document", "severity": "attention", "title": "Mitre 10 needs context", "summary": "NZD 184.75 is unresolved and has no receipt attached.", "amountMinor": 18475, "currency": "NZD", "status": "open", "evidenceIds": ["evd_koru_mitre10_row"] },
+    { "findingId": "finding_koru_duplicate_pending", "kind": "duplicate", "severity": "info", "title": "Pending Figma row held out", "summary": "The NZD 30.00 pending row matches the posted charge.", "amountMinor": 3000, "currency": "NZD", "status": "open", "evidenceIds": ["evd_koru_figma_posted", "evd_koru_figma_pending"] },
+    { "findingId": "finding_koru_reserve_risk", "kind": "reserve_risk", "severity": "critical", "title": "Protected reserve is at risk", "summary": "The 30-day low is NZD 99.23 below reserve.", "amountMinor": 9923, "currency": "NZD", "status": "open", "evidenceIds": ["evd_koru_forecast_30d"] }
+  ],
+  "activity": [
+    { "activityId": "activity_koru_daily_close", "kind": "job_run", "summary": "Daily Close completed from 10 source rows", "status": "completed", "occurredAt": "2026-07-17T08:00:04+12:00", "undoable": false, "correlationId": "corr_koru_daily_close_20260717", "evidenceIds": ["evd_koru_bank_csv"] }
+  ],
+  "sources": [
+    { "sourceItemId": "src_koru_bank_csv_20260717", "sourceType": "csv", "label": "Koru Studio bank export — July 2026", "digest": "c2c07beeca632f4e09700837cc4b199653ce9b68f65b804b7c30e9838ef94eac", "receivedAt": "2026-07-17T07:59:00+12:00", "status": "processed", "rowCount": 10 },
+    { "sourceItemId": "src_koru_telegram_910001", "sourceType": "telegram_fixture", "label": "Telegram parking receipt fixture", "digest": "58ec491e7cc4fcec630614b3db24da72986da10d0c52f813dfddfc101bc7e4a6", "receivedAt": "2026-07-17T09:00:00+12:00", "status": "pending", "rowCount": 1 }
+  ],
+  "totals": {
+    "asOf": "2026-07-17T08:00:00+12:00",
+    "currency": "NZD",
+    "currentBalanceMinor": 504576,
+    "protectedReserveMinor": 200000,
+    "businessIncomeMinor": 725000,
+    "businessExpenseMinor": 139499,
+    "personalExpenseMinor": 62450,
+    "unresolvedExpenseMinor": 18475,
+    "projectedLowPointMinor": 190077,
+    "reserveShortfallMinor": 9923
+  },
+  "artifacts": [
+    { "artifactId": "artifact_koru_owner_pack_html", "kind": "owner_pack_html", "title": "Koru Studio owner pack", "contentHash": "6f82cd96595aee376b11efb62c3cc52d8e8724b9647e4e4fcf894f1d55770651", "generatedAt": "2026-07-17T08:00:03+12:00", "evidenceIds": ["evd_koru_bank_csv", "evd_koru_forecast_30d"] },
+    { "artifactId": "artifact_koru_owner_pack_pdf", "kind": "owner_pack_pdf", "title": "Koru Studio owner pack", "contentHash": "dc0f89a8fcbdf717462730ac5fc3084ac47f35f8f5732921223cdef0647bc865", "generatedAt": "2026-07-17T08:00:03+12:00", "evidenceIds": ["evd_koru_bank_csv", "evd_koru_forecast_30d"] }
+  ],
+  "modelMode": "local",
+  "freshness": { "dataThrough": "2026-07-17T08:00:00+12:00", "status": "current", "timezone": "Pacific/Auckland" }
+}

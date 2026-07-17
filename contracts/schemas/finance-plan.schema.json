@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://finance-agent.local/schemas/finance-plan.schema.json",
+  "title": "FinancePlan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["planVersion", "planId", "threadId", "runId", "intent", "actions"],
+  "properties": {
+    "planVersion": { "const": "FinancePlan@1" },
+    "planId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+    "threadId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+    "runId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+    "intent": { "type": "string", "minLength": 1, "maxLength": 240 },
+    "actions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/action" },
+      "minItems": 1,
+      "maxItems": 5
+    }
+  },
+  "$defs": {
+    "action": {
+      "oneOf": [
+        { "$ref": "#/$defs/querySummary" },
+        { "$ref": "#/$defs/queryTransactions" },
+        { "$ref": "#/$defs/runCashScenario" },
+        { "$ref": "#/$defs/recordBusinessClaim" },
+        { "$ref": "#/$defs/createClassificationRule" },
+        { "$ref": "#/$defs/undoEvent" },
+        { "$ref": "#/$defs/prepareOwnerPack" },
+        { "$ref": "#/$defs/showSurface" }
+      ]
+    },
+    "querySummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actionId", "kind", "window"],
+      "properties": {
+        "actionId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "kind": { "const": "query_summary" },
+        "window": { "enum": ["current", "last_30_days", "forecast_30_days"] }
+      }
+    },
+    "queryTransactions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actionId", "kind", "merchantContains", "classification", "limit"],
+      "properties": {
+        "actionId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "kind": { "const": "query_transactions" },
+        "merchantContains": { "type": ["string", "null"], "maxLength": 100 },
+        "classification": { "enum": ["any", "business", "personal", "unresolved", "transfer"] },
+        "limit": { "type": "integer", "minimum": 1, "maximum": 100 }
+      }
+    },
+    "runCashScenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actionId", "kind", "scenarioId", "plannedAmountMinor", "currency", "plannedDate"],
+      "properties": {
+        "actionId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "kind": { "const": "run_cash_scenario" },
+        "scenarioId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "plannedAmountMinor": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/minorUnits" },
+        "currency": { "const": "NZD" },
+        "plannedDate": { "type": "string", "format": "date" }
+      }
+    },
+    "recordBusinessClaim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actionId", "kind", "claimType", "statement", "effectiveDate"],
+      "properties": {
+        "actionId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "kind": { "const": "record_business_claim" },
+        "claimType": { "enum": ["business_context", "classification_instruction", "planned_expense", "reserve_policy"] },
+        "statement": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "effectiveDate": { "type": "string", "format": "date" }
+      }
+    },
+    "createClassificationRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actionId", "kind", "merchantContains", "maximumAmountMinor", "currency", "targetClassification", "targetCategory", "effectiveFrom"],
+      "properties": {
+        "actionId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "kind": { "const": "create_classification_rule" },
+        "merchantContains": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "maximumAmountMinor": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/nonNegativeMinorUnits" },
+        "currency": { "const": "NZD" },
+        "targetClassification": { "const": "business" },
+        "targetCategory": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "effectiveFrom": { "type": "string", "format": "date" }
+      }
+    },
+    "undoEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actionId", "kind", "targetEventId"],
+      "properties": {
+        "actionId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "kind": { "const": "undo_event" },
+        "targetEventId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" }
+      }
+    },
+    "prepareOwnerPack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actionId", "kind", "format"],
+      "properties": {
+        "actionId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "kind": { "const": "prepare_owner_pack" },
+        "format": { "enum": ["html", "pdf", "html_and_pdf"] }
+      }
+    },
+    "showSurface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actionId", "kind", "surfaceType"],
+      "properties": {
+        "actionId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "kind": { "const": "show_surface" },
+        "surfaceType": { "enum": ["living_brief", "transaction_detail", "cash_scenario", "records_table", "owner_pack", "work_receipt"] }
+      }
+    }
+  }
+}

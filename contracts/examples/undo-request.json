@@ -1,0 +1,6 @@
+{
+  "requestId": "req_koru_undo_mitre10",
+  "eventId": "evt_koru_rule_mitre10",
+  "actor": "owner",
+  "reason": "Show me the prior state."
+}

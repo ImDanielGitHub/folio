@@ -1,0 +1,17 @@
+{
+  "manifestVersion": "contracts.manifest@1",
+  "cases": [
+    { "document": "contracts/examples/finance-plan.json", "schemaId": "https://finance-agent.local/schemas/finance-plan.schema.json" },
+    { "document": "contracts/examples/dialogue-frame.json", "schemaId": "https://finance-agent.local/schemas/dialogue-frame.schema.json" },
+    { "document": "contracts/examples/finance-event.json", "schemaId": "https://finance-agent.local/schemas/finance-event.schema.json" },
+    { "document": "contracts/examples/undo-request.json", "schemaId": "https://finance-agent.local/schemas/undo-request.schema.json" },
+    { "document": "contracts/examples/undo-response.json", "schemaId": "https://finance-agent.local/schemas/undo-response.schema.json" },
+    { "document": "contracts/examples/model-receipt.json", "schemaId": "https://finance-agent.local/schemas/model-receipt.schema.json" },
+    { "document": "contracts/examples/egress-receipt.json", "schemaId": "https://finance-agent.local/schemas/egress-receipt.schema.json" },
+    { "document": "contracts/examples/surface-work-receipt.json", "schemaId": "https://finance-agent.local/schemas/finance-surface-spec.schema.json" },
+    { "document": "fixtures/ui/surface-living-brief.json", "schemaId": "https://finance-agent.local/schemas/finance-surface-spec.schema.json" },
+    { "document": "fixtures/ui/surface-cash-scenario.json", "schemaId": "https://finance-agent.local/schemas/finance-surface-spec.schema.json" },
+    { "document": "fixtures/ui/workspace-snapshot.json", "schemaId": "https://finance-agent.local/schemas/api-snapshot.schema.json" },
+    { "document": "fixtures/ui/daily-close-events.json", "schemaId": "https://finance-agent.local/schemas/run-event-stream.schema.json" }
+  ]
+}

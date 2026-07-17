@@ -1,0 +1,31 @@
+{
+  "planVersion": "FinancePlan@1",
+  "planId": "plan_koru_mitre10",
+  "threadId": "thr_koru_studio_main",
+  "runId": "run_koru_owner_turn_mitre10",
+  "intent": "Record the owner's Mitre 10 correction and show the resulting receipt.",
+  "actions": [
+    {
+      "actionId": "action_koru_record_claim",
+      "kind": "record_business_claim",
+      "claimType": "classification_instruction",
+      "statement": "Mitre 10 was for a client fit-out; apply this only below NZD 500.",
+      "effectiveDate": "2026-07-06"
+    },
+    {
+      "actionId": "action_koru_create_rule",
+      "kind": "create_classification_rule",
+      "merchantContains": "MITRE 10",
+      "maximumAmountMinor": 50000,
+      "currency": "NZD",
+      "targetClassification": "business",
+      "targetCategory": "client_fit_out_materials",
+      "effectiveFrom": "2026-07-06"
+    },
+    {
+      "actionId": "action_koru_show_receipt",
+      "kind": "show_surface",
+      "surfaceType": "work_receipt"
+    }
+  ]
+}

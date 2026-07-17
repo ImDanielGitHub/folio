@@ -1,0 +1,77 @@
+{
+  "specVersion": "FinanceSurfaceSpec@1",
+  "surfaceId": "surface_koru_living_brief",
+  "surfaceType": "living_brief",
+  "title": "Morning close",
+  "subtitle": "Three items need your attention",
+  "freshness": {
+    "dataThrough": "2026-07-17T08:00:00+12:00",
+    "status": "current",
+    "timezone": "Pacific/Auckland"
+  },
+  "blocks": [
+    {
+      "blockId": "block_koru_close_summary",
+      "type": "narrative",
+      "text": "The close finished from 10 bank rows. One pending Figma row was held out as a likely duplicate. The 30-day plan dips below the protected reserve after the planned laptop purchase.",
+      "tone": "caution"
+    },
+    {
+      "blockId": "block_koru_current_balance",
+      "type": "metric",
+      "label": "Cleared balance",
+      "valueMinor": 504576,
+      "currency": "NZD",
+      "evidenceIds": ["evd_koru_bank_csv"]
+    },
+    {
+      "blockId": "block_koru_projected_low",
+      "type": "metric",
+      "label": "Projected 30-day low",
+      "valueMinor": 190077,
+      "currency": "NZD",
+      "evidenceIds": ["evd_koru_forecast_30d"]
+    },
+    {
+      "blockId": "block_koru_missing_receipt",
+      "type": "finding",
+      "findingId": "finding_koru_missing_receipt",
+      "severity": "attention",
+      "title": "Mitre 10 needs context",
+      "summary": "NZD 184.75 is unresolved and has no receipt attached.",
+      "amountMinor": 18475,
+      "currency": "NZD",
+      "status": "open",
+      "evidenceIds": ["evd_koru_mitre10_row"]
+    },
+    {
+      "blockId": "block_koru_duplicate_pending",
+      "type": "finding",
+      "findingId": "finding_koru_duplicate_pending",
+      "severity": "info",
+      "title": "Pending Figma row held out",
+      "summary": "A NZD 30.00 pending row matches the posted Figma charge and is excluded from totals.",
+      "amountMinor": 3000,
+      "currency": "NZD",
+      "status": "open",
+      "evidenceIds": ["evd_koru_figma_posted", "evd_koru_figma_pending"]
+    },
+    {
+      "blockId": "block_koru_reserve_risk",
+      "type": "finding",
+      "findingId": "finding_koru_reserve_risk",
+      "severity": "critical",
+      "title": "Protected reserve is at risk",
+      "summary": "The projected low is NZD 99.23 below the NZD 2,000 reserve after the planned laptop purchase.",
+      "amountMinor": 9923,
+      "currency": "NZD",
+      "status": "open",
+      "evidenceIds": ["evd_koru_forecast_30d"]
+    }
+  ],
+  "actions": [
+    { "actionId": "act_koru_show_cash", "type": "run_scenario", "label": "Explore cash risk", "scenarioId": "scenario_koru_laptop" },
+    { "actionId": "act_koru_open_sources", "type": "open_drawer", "label": "Open sources", "drawer": "sources" },
+    { "actionId": "act_koru_open_activity", "type": "open_drawer", "label": "Open activity", "drawer": "activity" }
+  ]
+}

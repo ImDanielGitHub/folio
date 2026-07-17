@@ -1,0 +1,15 @@
+PROVISIONAL LICENCE DECISION — NOT YET AN EFFECTIVE OPEN-SOURCE GRANT
+
+The intended licence for original source code in this repository is the
+Apache License, Version 2.0 (SPDX identifier: Apache-2.0).
+
+Legal and ownership confirmation is still required. Until the repository owner
+replaces this notice with the complete Apache-2.0 licence text and updates the
+package metadata, the project remains UNLICENSED and no permission is granted
+beyond rights that apply by law.
+
+Proposed licence text: https://www.apache.org/licenses/LICENSE-2.0
+
+Reason for the provisional choice: Apache-2.0 is permissive, includes an
+express patent grant, and is suitable for the intended open-source local-first
+product. This statement is a project decision record, not legal advice.

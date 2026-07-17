@@ -1,0 +1,26 @@
+{
+  "specVersion": "FinanceSurfaceSpec@1",
+  "surfaceId": "surface_koru_work_receipt",
+  "surfaceType": "work_receipt",
+  "title": "Classification updated",
+  "subtitle": "One transaction changed; the event can be undone",
+  "freshness": { "dataThrough": "2026-07-17T08:04:01+12:00", "status": "current", "timezone": "Pacific/Auckland" },
+  "blocks": [
+    {
+      "blockId": "block_koru_rule_change",
+      "type": "change_diff",
+      "eventId": "evt_koru_rule_mitre10",
+      "changes": [
+        { "field": "classification", "label": "Mitre 10 classification", "before": "unresolved", "after": "business" },
+        { "field": "category", "label": "Category", "before": null, "after": "client_fit_out_materials" },
+        { "field": "unresolvedExpenseMinor", "label": "Unresolved expenses", "before": 18475, "after": 0 }
+      ],
+      "evidenceIds": ["evd_koru_mitre10_row", "evd_koru_owner_claim_mitre10"],
+      "undoAvailable": true
+    }
+  ],
+  "actions": [
+    { "actionId": "act_koru_undo_rule", "type": "undo_event", "label": "Undo", "eventId": "evt_koru_rule_mitre10" },
+    { "actionId": "act_koru_open_activity_rule", "type": "open_drawer", "label": "Open activity", "drawer": "activity" }
+  ]
+}

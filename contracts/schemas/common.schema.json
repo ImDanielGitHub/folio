@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://finance-agent.local/schemas/common.schema.json",
+  "title": "Finance Agent common contract types",
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,15}_[a-z0-9][a-z0-9_]{2,95}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$"
+    },
+    "minorUnits": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "nonNegativeMinorUnits": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "money": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["amountMinor", "currency"],
+      "properties": {
+        "amountMinor": { "$ref": "#/$defs/minorUnits" },
+        "currency": { "$ref": "#/$defs/currency" }
+      }
+    },
+    "freshness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dataThrough", "status", "timezone"],
+      "properties": {
+        "dataThrough": { "type": "string", "format": "date-time" },
+        "status": { "enum": ["current", "stale", "partial"] },
+        "timezone": { "type": "string", "const": "Pacific/Auckland" }
+      }
+    },
+    "evidenceLink": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidenceId", "sourceItemId", "sourceRowId", "label"],
+      "properties": {
+        "evidenceId": { "$ref": "#/$defs/id" },
+        "sourceItemId": { "$ref": "#/$defs/id" },
+        "sourceRowId": {
+          "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }]
+        },
+        "label": { "type": "string", "minLength": 1, "maxLength": 160 }
+      }
+    },
+    "transactionRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "transactionId",
+        "occurredOn",
+        "description",
+        "amountMinor",
+        "currency",
+        "status",
+        "classification",
+        "category",
+        "evidenceIds"
+      ],
+      "properties": {
+        "transactionId": { "$ref": "#/$defs/id" },
+        "occurredOn": { "type": "string", "format": "date" },
+        "description": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "amountMinor": { "$ref": "#/$defs/minorUnits" },
+        "currency": { "$ref": "#/$defs/currency" },
+        "status": { "enum": ["posted", "pending", "duplicate", "ignored"] },
+        "classification": { "enum": ["business", "personal", "unresolved", "transfer"] },
+        "category": { "type": ["string", "null"], "maxLength": 80 },
+        "evidenceIds": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/id" },
+          "minItems": 1,
+          "maxItems": 20,
+          "uniqueItems": true
+        }
+      }
+    },
+    "forecastPoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["date", "balanceMinor", "reserveMinor", "status"],
+      "properties": {
+        "date": { "type": "string", "format": "date" },
+        "balanceMinor": { "$ref": "#/$defs/minorUnits" },
+        "reserveMinor": { "$ref": "#/$defs/nonNegativeMinorUnits" },
+        "status": { "enum": ["above_reserve", "below_reserve"] }
+      }
+    },
+    "scalarValue": {
+      "oneOf": [
+        { "type": "string", "maxLength": 500 },
+        { "$ref": "#/$defs/minorUnits" },
+        { "type": "boolean" },
+        { "type": "null" }
+      ]
+    }
+  }
+}

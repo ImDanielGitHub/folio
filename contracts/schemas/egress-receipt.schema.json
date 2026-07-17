@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://finance-agent.local/schemas/egress-receipt.schema.json",
+  "title": "Cloud egress receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["receiptVersion", "receiptId", "workspaceId", "threadId", "runId", "mode", "provider", "model", "purpose", "fieldClasses", "itemCount", "characterCount", "rawSourceFilesIncluded", "rawLedgerHistoryIncluded", "policyId", "occurredAt"],
+  "properties": {
+    "receiptVersion": { "const": "egress.receipt@1" },
+    "receiptId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+    "workspaceId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+    "threadId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+    "runId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+    "mode": { "enum": ["hybrid", "cloud"] },
+    "provider": { "const": "openai" },
+    "model": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "purpose": { "enum": ["compile_plan", "explain", "ask_question"] },
+    "fieldClasses": {
+      "type": "array",
+      "items": { "enum": ["aggregate_amounts", "finding_labels", "forecast_assumptions", "owner_claims", "evidence_labels"] },
+      "minItems": 1,
+      "maxItems": 5,
+      "uniqueItems": true
+    },
+    "itemCount": { "type": "integer", "minimum": 0 },
+    "characterCount": { "type": "integer", "minimum": 0 },
+    "rawSourceFilesIncluded": { "const": false },
+    "rawLedgerHistoryIncluded": { "const": false },
+    "policyId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+    "occurredAt": { "type": "string", "format": "date-time" }
+  }
+}

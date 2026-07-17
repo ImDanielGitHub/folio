@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://finance-agent.local/schemas/undo-request.schema.json",
+  "title": "Undo event request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["requestId", "eventId", "actor", "reason"],
+  "properties": {
+    "requestId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+    "eventId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+    "actor": { "const": "owner" },
+    "reason": { "type": "string", "minLength": 1, "maxLength": 240 }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "update_id": 910001,
+  "message": {
+    "message_id": 501,
+    "date": 1784214000,
+    "from": {
+      "id": 700001,
+      "is_bot": false,
+      "first_name": "Koru Owner",
+      "language_code": "en"
+    },
+    "chat": {
+      "id": 700001,
+      "type": "private",
+      "first_name": "Koru Owner"
+    },
+    "caption": "Parking for the client fit-out, NZD 32.40 including GST.",
+    "photo": [
+      {
+        "file_id": "fixture_photo_koru_parking_001",
+        "file_unique_id": "fixture_unique_koru_parking_001",
+        "width": 1280,
+        "height": 960,
+        "file_size": 48213
+      }
+    ]
+  }
+}

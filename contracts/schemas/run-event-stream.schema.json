@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://finance-agent.local/schemas/run-event-stream.schema.json",
+  "title": "Ordered run-event fixture stream",
+  "type": "array",
+  "items": { "$ref": "https://finance-agent.local/schemas/run-event.schema.json" },
+  "minItems": 1,
+  "maxItems": 200
+}

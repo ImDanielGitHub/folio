@@ -1,0 +1,218 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://finance-agent.local/schemas/api-snapshot.schema.json",
+  "title": "Workspace API snapshot envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "snapshotVersion",
+    "snapshotId",
+    "workspace",
+    "thread",
+    "currentSurface",
+    "findings",
+    "activity",
+    "sources",
+    "totals",
+    "artifacts",
+    "modelMode",
+    "freshness"
+  ],
+  "properties": {
+    "snapshotVersion": { "const": "api.snapshot@1" },
+    "snapshotId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+    "workspace": { "$ref": "#/$defs/workspace" },
+    "thread": { "$ref": "#/$defs/thread" },
+    "currentSurface": { "$ref": "https://finance-agent.local/schemas/finance-surface-spec.schema.json" },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" },
+      "maxItems": 20
+    },
+    "activity": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/activity" },
+      "maxItems": 100
+    },
+    "sources": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/source" },
+      "maxItems": 100
+    },
+    "totals": { "$ref": "#/$defs/totals" },
+    "artifacts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/artifact" },
+      "maxItems": 20
+    },
+    "modelMode": { "enum": ["local", "hybrid", "cloud"] },
+    "freshness": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/freshness" }
+  },
+  "$defs": {
+    "workspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workspaceId", "name", "entityType", "currency", "timezone", "protectedReserveMinor"],
+      "properties": {
+        "workspaceId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "entityType": { "const": "nz_sole_trader" },
+        "currency": { "const": "NZD" },
+        "timezone": { "const": "Pacific/Auckland" },
+        "protectedReserveMinor": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/nonNegativeMinorUnits" }
+      }
+    },
+    "thread": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["threadId", "turns", "activeQuestion"],
+      "properties": {
+        "threadId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "turns": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/turn" },
+          "maxItems": 200
+        },
+        "activeQuestion": {
+          "oneOf": [{ "$ref": "#/$defs/question" }, { "type": "null" }]
+        }
+      }
+    },
+    "turn": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["turnId", "role", "content", "occurredAt", "status", "evidenceIds"],
+      "properties": {
+        "turnId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "role": { "enum": ["owner", "agent"] },
+        "content": { "type": "string", "minLength": 1, "maxLength": 8000 },
+        "occurredAt": { "type": "string", "format": "date-time" },
+        "status": { "enum": ["complete", "streaming", "failed"] },
+        "evidenceIds": {
+          "type": "array",
+          "items": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+          "maxItems": 30,
+          "uniqueItems": true
+        }
+      }
+    },
+    "question": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["questionId", "prompt", "askedAt"],
+      "properties": {
+        "questionId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "prompt": { "type": "string", "minLength": 1, "maxLength": 400 },
+        "askedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["findingId", "kind", "severity", "title", "summary", "amountMinor", "currency", "status", "evidenceIds"],
+      "properties": {
+        "findingId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "kind": { "enum": ["missing_document", "duplicate", "reserve_risk"] },
+        "severity": { "enum": ["info", "attention", "critical"] },
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 400 },
+        "amountMinor": {
+          "oneOf": [
+            { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/minorUnits" },
+            { "type": "null" }
+          ]
+        },
+        "currency": { "oneOf": [{ "const": "NZD" }, { "type": "null" }] },
+        "status": { "enum": ["open", "resolved", "dismissed"] },
+        "evidenceIds": {
+          "type": "array",
+          "items": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+          "minItems": 1,
+          "maxItems": 20,
+          "uniqueItems": true
+        }
+      }
+    },
+    "activity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["activityId", "kind", "summary", "status", "occurredAt", "undoable", "correlationId", "evidenceIds"],
+      "properties": {
+        "activityId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "kind": { "enum": ["job_run", "finance_event", "undo", "source_ingest", "artifact", "outbox"] },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "status": { "enum": ["queued", "running", "completed", "failed", "undone"] },
+        "occurredAt": { "type": "string", "format": "date-time" },
+        "undoable": { "type": "boolean" },
+        "correlationId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "evidenceIds": {
+          "type": "array",
+          "items": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+          "maxItems": 30,
+          "uniqueItems": true
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceItemId", "sourceType", "label", "digest", "receivedAt", "status", "rowCount"],
+      "properties": {
+        "sourceItemId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "sourceType": { "enum": ["csv", "telegram_fixture", "owner_claim"] },
+        "label": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "digest": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/sha256" },
+        "receivedAt": { "type": "string", "format": "date-time" },
+        "status": { "enum": ["pending", "processed", "failed"] },
+        "rowCount": { "type": "integer", "minimum": 0, "maximum": 100000 }
+      }
+    },
+    "totals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "asOf",
+        "currency",
+        "currentBalanceMinor",
+        "protectedReserveMinor",
+        "businessIncomeMinor",
+        "businessExpenseMinor",
+        "personalExpenseMinor",
+        "unresolvedExpenseMinor",
+        "projectedLowPointMinor",
+        "reserveShortfallMinor"
+      ],
+      "properties": {
+        "asOf": { "type": "string", "format": "date-time" },
+        "currency": { "const": "NZD" },
+        "currentBalanceMinor": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/minorUnits" },
+        "protectedReserveMinor": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/nonNegativeMinorUnits" },
+        "businessIncomeMinor": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/nonNegativeMinorUnits" },
+        "businessExpenseMinor": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/nonNegativeMinorUnits" },
+        "personalExpenseMinor": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/nonNegativeMinorUnits" },
+        "unresolvedExpenseMinor": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/nonNegativeMinorUnits" },
+        "projectedLowPointMinor": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/minorUnits" },
+        "reserveShortfallMinor": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/nonNegativeMinorUnits" }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifactId", "kind", "title", "contentHash", "generatedAt", "evidenceIds"],
+      "properties": {
+        "artifactId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "kind": { "enum": ["owner_pack_html", "owner_pack_pdf"] },
+        "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "contentHash": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/sha256" },
+        "generatedAt": { "type": "string", "format": "date-time" },
+        "evidenceIds": {
+          "type": "array",
+          "items": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+          "minItems": 1,
+          "maxItems": 50,
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}

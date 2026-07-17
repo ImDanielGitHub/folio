@@ -1,0 +1,11 @@
+source_row_id,account_id,occurred_on,description,amount_minor,currency,status,external_reference
+row_koru_001,acct_koru_business,2026-07-01,CLIENT PAYMENT ACME,450000,NZD,posted,bank_1001
+row_koru_002,acct_koru_business,2026-07-02,KORU STUDIO RENT,-120000,NZD,posted,bank_1002
+row_koru_003,acct_koru_business,2026-07-03,ADOBE CREATIVE CLOUD,-8999,NZD,posted,bank_1003
+row_koru_004,acct_koru_business,2026-07-04,XERO SUBSCRIPTION,-7500,NZD,posted,bank_1004
+row_koru_005,acct_koru_business,2026-07-05,OWNER DRAW,-60000,NZD,posted,bank_1005
+row_koru_006,acct_koru_business,2026-07-06,MITRE 10 MEGA,-18475,NZD,posted,bank_1006
+row_koru_007,acct_koru_business,2026-07-07,HARBOUR CAFE,-2450,NZD,posted,bank_1007
+row_koru_008,acct_koru_business,2026-07-08,CLIENT PAYMENT TUI,275000,NZD,posted,bank_1008
+row_koru_009,acct_koru_business,2026-07-10,FIGMA SUBSCRIPTION,-3000,NZD,posted,bank_1009
+row_koru_010,acct_koru_business,2026-07-10,FIGMA SUBSCRIPTION,-3000,NZD,pending,pending_1009

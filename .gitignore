@@ -1,0 +1,35 @@
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# JavaScript
+node_modules/
+.pnpm-store/
+dist/
+build/
+coverage/
+playwright-report/
+test-results/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Local runtime state and generated artefacts
+var/
+*.sqlite
+*.sqlite3
+*.db
+artifacts/
+
+# Editors and operating systems
+.DS_Store
+.idea/
+.vscode/
+*.swp

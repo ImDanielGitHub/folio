@@ -1,0 +1,68 @@
+{
+  "fixtureVersion": "canonical.ids@1",
+  "workspaceId": "ws_koru_studio",
+  "threadId": "thr_koru_studio_main",
+  "accountId": "acct_koru_business",
+  "sourceItemIds": {
+    "bankCsv": "src_koru_bank_csv_20260717",
+    "telegram": "src_koru_telegram_910001",
+    "ownerClaim": "src_koru_owner_claim_mitre10"
+  },
+  "sourceRowIds": [
+    "row_koru_001",
+    "row_koru_002",
+    "row_koru_003",
+    "row_koru_004",
+    "row_koru_005",
+    "row_koru_006",
+    "row_koru_007",
+    "row_koru_008",
+    "row_koru_009",
+    "row_koru_010"
+  ],
+  "transactionIds": [
+    "txn_koru_001",
+    "txn_koru_002",
+    "txn_koru_003",
+    "txn_koru_004",
+    "txn_koru_005",
+    "txn_koru_006",
+    "txn_koru_007",
+    "txn_koru_008",
+    "txn_koru_009",
+    "txn_koru_010"
+  ],
+  "evidenceIds": {
+    "bankCsv": "evd_koru_bank_csv",
+    "mitre10": "evd_koru_mitre10_row",
+    "figmaPosted": "evd_koru_figma_posted",
+    "figmaPending": "evd_koru_figma_pending",
+    "forecast": "evd_koru_forecast_30d",
+    "telegram": "evd_koru_telegram_parking",
+    "ownerClaim": "evd_koru_owner_claim_mitre10"
+  },
+  "runId": "run_koru_daily_close_20260717",
+  "receiptId": "rcpt_koru_daily_close_20260717",
+  "correlationId": "corr_koru_daily_close_20260717",
+  "findingIds": {
+    "missingDocument": "finding_koru_missing_receipt",
+    "duplicatePending": "finding_koru_duplicate_pending",
+    "reserveRisk": "finding_koru_reserve_risk"
+  },
+  "ruleId": "rule_koru_mitre10_under_500",
+  "claimId": "claim_koru_mitre10_client_fitout",
+  "eventId": "evt_koru_rule_mitre10",
+  "undoEventId": "evt_koru_rule_mitre10_undo",
+  "artifactIds": {
+    "html": "artifact_koru_owner_pack_html",
+    "pdf": "artifact_koru_owner_pack_pdf"
+  },
+  "surfaceIds": {
+    "livingBrief": "surface_koru_living_brief",
+    "cashScenario": "surface_koru_cash_scenario",
+    "transactionDetail": "surface_koru_transaction_detail",
+    "recordsTable": "surface_koru_records_table",
+    "ownerPack": "surface_koru_owner_pack",
+    "workReceipt": "surface_koru_work_receipt"
+  }
+}

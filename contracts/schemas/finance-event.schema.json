@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://finance-agent.local/schemas/finance-event.schema.json",
+  "title": "Append-only finance event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["eventVersion", "eventId", "workspaceId", "eventType", "actor", "occurredAt", "sourceTurnId", "reason", "beforeJson", "afterJson", "scopeJson", "evidenceIds", "inverseEventJson", "correlationId"],
+  "properties": {
+    "eventVersion": { "const": "finance.event@1" },
+    "eventId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+    "workspaceId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+    "eventType": { "enum": ["classification_rule.created", "classification_rule.reapplied", "event.undone", "claim.recorded"] },
+    "actor": { "enum": ["owner", "agent", "system"] },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "sourceTurnId": {
+      "oneOf": [
+        { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        { "type": "null" }
+      ]
+    },
+    "reason": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "beforeJson": { "$ref": "#/$defs/stateProjection" },
+    "afterJson": { "$ref": "#/$defs/stateProjection" },
+    "scopeJson": { "$ref": "#/$defs/scope" },
+    "evidenceIds": {
+      "type": "array",
+      "items": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+      "minItems": 1,
+      "maxItems": 50,
+      "uniqueItems": true
+    },
+    "inverseEventJson": { "$ref": "#/$defs/inverse" },
+    "correlationId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" }
+  },
+  "$defs": {
+    "stateProjection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items"],
+      "properties": {
+        "items": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["targetType", "targetId", "fields"],
+            "properties": {
+              "targetType": { "enum": ["transaction", "classification_rule", "claim", "forecast"] },
+              "targetId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+              "fields": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 20,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["name", "value"],
+                  "properties": {
+                    "name": { "enum": ["classification", "category", "ruleId", "active", "unresolvedExpenseMinor", "projectedLowPointMinor", "reserveShortfallMinor"] },
+                    "value": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/scalarValue" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["merchantContains", "maximumAmountMinor", "currency", "targetClassification", "targetCategory", "transactionIds"],
+      "properties": {
+        "merchantContains": { "type": ["string", "null"], "maxLength": 100 },
+        "maximumAmountMinor": {
+          "oneOf": [
+            { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/nonNegativeMinorUnits" },
+            { "type": "null" }
+          ]
+        },
+        "currency": { "oneOf": [{ "const": "NZD" }, { "type": "null" }] },
+        "targetClassification": { "enum": ["business", "personal", "unresolved", null] },
+        "targetCategory": { "type": ["string", "null"], "maxLength": 80 },
+        "transactionIds": {
+          "type": "array",
+          "items": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+          "maxItems": 100,
+          "uniqueItems": true
+        }
+      }
+    },
+    "inverse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["eventType", "reason", "beforeJson", "afterJson", "scopeJson"],
+      "properties": {
+        "eventType": { "enum": ["event.undone", "classification_rule.reapplied"] },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "beforeJson": { "$ref": "#/$defs/stateProjection" },
+        "afterJson": { "$ref": "#/$defs/stateProjection" },
+        "scopeJson": { "$ref": "#/$defs/scope" }
+      }
+    }
+  }
+}

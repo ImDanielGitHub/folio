@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://finance-agent.local/schemas/model-receipt.schema.json",
+  "title": "Model execution receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["receiptVersion", "receiptId", "workspaceId", "threadId", "runId", "mode", "provider", "model", "capability", "inputCharacters", "outputCharacters", "latencyMs", "schemaRepairAttempts", "status", "modelSuppliedFinanceTotals", "occurredAt"],
+  "properties": {
+    "receiptVersion": { "const": "model.receipt@1" },
+    "receiptId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+    "workspaceId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+    "threadId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+    "runId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+    "mode": { "enum": ["local", "hybrid", "cloud"] },
+    "provider": { "enum": ["lm_studio", "openai"] },
+    "model": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "capability": { "enum": ["compile_plan", "classify", "explain", "ask_question"] },
+    "inputCharacters": { "type": "integer", "minimum": 0 },
+    "outputCharacters": { "type": "integer", "minimum": 0 },
+    "latencyMs": { "type": "integer", "minimum": 0 },
+    "schemaRepairAttempts": { "type": "integer", "minimum": 0, "maximum": 1 },
+    "status": { "enum": ["completed", "failed_closed", "skipped"] },
+    "modelSuppliedFinanceTotals": { "const": false },
+    "occurredAt": { "type": "string", "format": "date-time" }
+  }
+}

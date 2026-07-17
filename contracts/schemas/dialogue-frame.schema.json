@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://finance-agent.local/schemas/dialogue-frame.schema.json",
+  "title": "Provider-independent DialogueFrame and claims",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["frameVersion", "frameId", "workspaceId", "threadId", "updatedAt", "currentIntent", "activeQuestion", "claims"],
+  "properties": {
+    "frameVersion": { "const": "DialogueFrame@1" },
+    "frameId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+    "workspaceId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+    "threadId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "currentIntent": { "type": "string", "minLength": 1, "maxLength": 240 },
+    "activeQuestion": { "oneOf": [{ "$ref": "#/$defs/question" }, { "type": "null" }] },
+    "claims": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/claim" },
+      "maxItems": 100
+    }
+  },
+  "$defs": {
+    "question": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["questionId", "prompt", "reason", "askedAt"],
+      "properties": {
+        "questionId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "prompt": { "type": "string", "minLength": 1, "maxLength": 400 },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "askedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claimId", "claimType", "statement", "sourceTurnId", "scope", "effectiveDate", "recordedAt", "status", "supersedesClaimId"],
+      "properties": {
+        "claimId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "claimType": { "enum": ["business_context", "classification_instruction", "planned_expense", "reserve_policy"] },
+        "statement": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "sourceTurnId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "scope": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["merchantContains", "maximumAmountMinor", "currency"],
+          "properties": {
+            "merchantContains": { "type": ["string", "null"], "maxLength": 100 },
+            "maximumAmountMinor": {
+              "oneOf": [
+                { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/nonNegativeMinorUnits" },
+                { "type": "null" }
+              ]
+            },
+            "currency": { "oneOf": [{ "const": "NZD" }, { "type": "null" }] }
+          }
+        },
+        "effectiveDate": { "type": "string", "format": "date" },
+        "recordedAt": { "type": "string", "format": "date-time" },
+        "status": { "enum": ["active", "superseded", "retracted"] },
+        "supersedesClaimId": {
+          "oneOf": [
+            { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+            { "type": "null" }
+          ]
+        }
+      }
+    }
+  }
+}

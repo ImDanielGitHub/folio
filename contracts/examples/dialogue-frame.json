@@ -1,0 +1,26 @@
+{
+  "frameVersion": "DialogueFrame@1",
+  "frameId": "frame_koru_after_mitre10",
+  "workspaceId": "ws_koru_studio",
+  "threadId": "thr_koru_studio_main",
+  "updatedAt": "2026-07-17T08:04:00+12:00",
+  "currentIntent": "Apply a narrow classification correction and preserve the owner's explanation.",
+  "activeQuestion": null,
+  "claims": [
+    {
+      "claimId": "claim_koru_mitre10_client_fitout",
+      "claimType": "classification_instruction",
+      "statement": "Mitre 10 was for a client fit-out; apply the merchant rule only below NZD 500.",
+      "sourceTurnId": "turn_koru_owner_mitre10",
+      "scope": {
+        "merchantContains": "MITRE 10",
+        "maximumAmountMinor": 50000,
+        "currency": "NZD"
+      },
+      "effectiveDate": "2026-07-06",
+      "recordedAt": "2026-07-17T08:04:00+12:00",
+      "status": "active",
+      "supersedesClaimId": null
+    }
+  ]
+}

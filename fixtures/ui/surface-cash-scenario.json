@@ -1,0 +1,45 @@
+{
+  "specVersion": "FinanceSurfaceSpec@1",
+  "surfaceId": "surface_koru_cash_scenario",
+  "surfaceType": "cash_scenario",
+  "title": "30-day cash scenario",
+  "subtitle": "Planned laptop purchase on 7 August",
+  "freshness": {
+    "dataThrough": "2026-07-17T08:00:00+12:00",
+    "status": "current",
+    "timezone": "Pacific/Auckland"
+  },
+  "blocks": [
+    {
+      "blockId": "block_koru_cash_series",
+      "type": "cash_series",
+      "currency": "NZD",
+      "points": [
+        { "date": "2026-07-17", "balanceMinor": 504576, "reserveMinor": 200000, "status": "above_reserve" },
+        { "date": "2026-07-28", "balanceMinor": 629576, "reserveMinor": 200000, "status": "above_reserve" },
+        { "date": "2026-07-31", "balanceMinor": 509576, "reserveMinor": 200000, "status": "above_reserve" },
+        { "date": "2026-08-03", "balanceMinor": 500577, "reserveMinor": 200000, "status": "above_reserve" },
+        { "date": "2026-08-04", "balanceMinor": 493077, "reserveMinor": 200000, "status": "above_reserve" },
+        { "date": "2026-08-07", "balanceMinor": 193077, "reserveMinor": 200000, "status": "below_reserve" },
+        { "date": "2026-08-10", "balanceMinor": 190077, "reserveMinor": 200000, "status": "below_reserve" }
+      ],
+      "assumptions": [
+        "The NZD 1,250 client payment arrives on 28 July.",
+        "The NZD 3,000 laptop purchase is paid on 7 August.",
+        "Rent and software recur on their listed dates; no unlisted income is assumed."
+      ],
+      "evidenceIds": ["evd_koru_bank_csv", "evd_koru_forecast_30d"]
+    },
+    {
+      "blockId": "block_koru_scenario_compare",
+      "type": "scenario_compare",
+      "baseline": { "label": "With laptop", "lowPointMinor": 190077, "reserveShortfallMinor": 9923, "currency": "NZD" },
+      "alternative": { "label": "Defer laptop", "lowPointMinor": 490077, "reserveShortfallMinor": 0, "currency": "NZD" },
+      "assumptions": ["Only the planned laptop timing changes."],
+      "evidenceIds": ["evd_koru_forecast_30d"]
+    }
+  ],
+  "actions": [
+    { "actionId": "act_koru_open_sources_cash", "type": "open_drawer", "label": "View assumptions", "drawer": "sources" }
+  ]
+}

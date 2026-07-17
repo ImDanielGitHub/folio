@@ -1,0 +1,358 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://finance-agent.local/schemas/finance-surface-spec.schema.json",
+  "title": "FinanceSurfaceSpec@1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "specVersion",
+    "surfaceId",
+    "surfaceType",
+    "title",
+    "subtitle",
+    "freshness",
+    "blocks",
+    "actions"
+  ],
+  "properties": {
+    "specVersion": { "const": "FinanceSurfaceSpec@1" },
+    "surfaceId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+    "surfaceType": {
+      "enum": [
+        "living_brief",
+        "transaction_detail",
+        "cash_scenario",
+        "records_table",
+        "owner_pack",
+        "work_receipt"
+      ]
+    },
+    "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "subtitle": { "type": ["string", "null"], "maxLength": 240 },
+    "freshness": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/freshness" },
+    "blocks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/block" },
+      "minItems": 1,
+      "maxItems": 20
+    },
+    "actions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/action" },
+      "maxItems": 8
+    }
+  },
+  "$defs": {
+    "blockBaseProperties": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["blockId", "type"],
+      "properties": {
+        "blockId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "type": { "type": "string" }
+      }
+    },
+    "block": {
+      "oneOf": [
+        { "$ref": "#/$defs/narrativeBlock" },
+        { "$ref": "#/$defs/metricBlock" },
+        { "$ref": "#/$defs/cashSeriesBlock" },
+        { "$ref": "#/$defs/scenarioCompareBlock" },
+        { "$ref": "#/$defs/transactionRowsBlock" },
+        { "$ref": "#/$defs/findingBlock" },
+        { "$ref": "#/$defs/sourceListBlock" },
+        { "$ref": "#/$defs/changeDiffBlock" },
+        { "$ref": "#/$defs/artifactPreviewBlock" }
+      ]
+    },
+    "narrativeBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["blockId", "type", "text", "tone"],
+      "properties": {
+        "blockId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "type": { "const": "narrative" },
+        "text": { "type": "string", "minLength": 1, "maxLength": 1200 },
+        "tone": { "enum": ["neutral", "positive", "caution", "critical"] }
+      }
+    },
+    "metricBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["blockId", "type", "label", "valueMinor", "currency", "evidenceIds"],
+      "properties": {
+        "blockId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "type": { "const": "metric" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "valueMinor": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/minorUnits" },
+        "currency": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/currency" },
+        "evidenceIds": {
+          "type": "array",
+          "items": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+          "minItems": 1,
+          "maxItems": 20,
+          "uniqueItems": true
+        }
+      }
+    },
+    "cashSeriesBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["blockId", "type", "currency", "points", "assumptions", "evidenceIds"],
+      "properties": {
+        "blockId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "type": { "const": "cash_series" },
+        "currency": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/currency" },
+        "points": {
+          "type": "array",
+          "items": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/forecastPoint" },
+          "minItems": 2,
+          "maxItems": 31
+        },
+        "assumptions": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 240 },
+          "minItems": 1,
+          "maxItems": 12
+        },
+        "evidenceIds": {
+          "type": "array",
+          "items": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+          "minItems": 1,
+          "maxItems": 30,
+          "uniqueItems": true
+        }
+      }
+    },
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "lowPointMinor", "reserveShortfallMinor", "currency"],
+      "properties": {
+        "label": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "lowPointMinor": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/minorUnits" },
+        "reserveShortfallMinor": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/nonNegativeMinorUnits" },
+        "currency": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/currency" }
+      }
+    },
+    "scenarioCompareBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["blockId", "type", "baseline", "alternative", "assumptions", "evidenceIds"],
+      "properties": {
+        "blockId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "type": { "const": "scenario_compare" },
+        "baseline": { "$ref": "#/$defs/scenario" },
+        "alternative": { "$ref": "#/$defs/scenario" },
+        "assumptions": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 240 },
+          "minItems": 1,
+          "maxItems": 12
+        },
+        "evidenceIds": {
+          "type": "array",
+          "items": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+          "minItems": 1,
+          "maxItems": 30,
+          "uniqueItems": true
+        }
+      }
+    },
+    "transactionRowsBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["blockId", "type", "rows", "totalMinor", "currency"],
+      "properties": {
+        "blockId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "type": { "const": "transaction_rows" },
+        "rows": {
+          "type": "array",
+          "items": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/transactionRow" },
+          "maxItems": 100
+        },
+        "totalMinor": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/minorUnits" },
+        "currency": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/currency" }
+      }
+    },
+    "findingBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["blockId", "type", "findingId", "severity", "title", "summary", "amountMinor", "currency", "status", "evidenceIds"],
+      "properties": {
+        "blockId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "type": { "const": "finding" },
+        "findingId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "severity": { "enum": ["info", "attention", "critical"] },
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 400 },
+        "amountMinor": {
+          "oneOf": [
+            { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/minorUnits" },
+            { "type": "null" }
+          ]
+        },
+        "currency": {
+          "oneOf": [
+            { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/currency" },
+            { "type": "null" }
+          ]
+        },
+        "status": { "enum": ["open", "resolved", "dismissed"] },
+        "evidenceIds": {
+          "type": "array",
+          "items": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+          "minItems": 1,
+          "maxItems": 20,
+          "uniqueItems": true
+        }
+      }
+    },
+    "sourceListBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["blockId", "type", "sources"],
+      "properties": {
+        "blockId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "type": { "const": "source_list" },
+        "sources": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["sourceItemId", "label", "sourceType", "receivedAt", "status"],
+            "properties": {
+              "sourceItemId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+              "label": { "type": "string", "minLength": 1, "maxLength": 160 },
+              "sourceType": { "enum": ["csv", "telegram_fixture", "owner_claim"] },
+              "receivedAt": { "type": "string", "format": "date-time" },
+              "status": { "enum": ["pending", "processed", "failed"] }
+            }
+          }
+        }
+      }
+    },
+    "changeDiffBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["blockId", "type", "eventId", "changes", "evidenceIds", "undoAvailable"],
+      "properties": {
+        "blockId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "type": { "const": "change_diff" },
+        "eventId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "changes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 30,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["field", "label", "before", "after"],
+            "properties": {
+              "field": { "enum": ["classification", "category", "ruleId", "unresolvedExpenseMinor", "projectedLowPointMinor", "reserveShortfallMinor"] },
+              "label": { "type": "string", "minLength": 1, "maxLength": 120 },
+              "before": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/scalarValue" },
+              "after": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/scalarValue" }
+            }
+          }
+        },
+        "evidenceIds": {
+          "type": "array",
+          "items": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+          "minItems": 1,
+          "maxItems": 20,
+          "uniqueItems": true
+        },
+        "undoAvailable": { "type": "boolean" }
+      }
+    },
+    "artifactPreviewBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["blockId", "type", "artifactId", "kind", "title", "generatedAt", "contentHash", "downloadAvailable", "evidenceIds"],
+      "properties": {
+        "blockId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "type": { "const": "artifact_preview" },
+        "artifactId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "kind": { "enum": ["html", "pdf"] },
+        "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "generatedAt": { "type": "string", "format": "date-time" },
+        "contentHash": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/sha256" },
+        "downloadAvailable": { "type": "boolean" },
+        "evidenceIds": {
+          "type": "array",
+          "items": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+          "minItems": 1,
+          "maxItems": 30,
+          "uniqueItems": true
+        }
+      }
+    },
+    "action": {
+      "oneOf": [
+        { "$ref": "#/$defs/focusSourceAction" },
+        { "$ref": "#/$defs/openDrawerAction" },
+        { "$ref": "#/$defs/runScenarioAction" },
+        { "$ref": "#/$defs/undoEventAction" },
+        { "$ref": "#/$defs/downloadArtifactAction" }
+      ]
+    },
+    "focusSourceAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actionId", "type", "label", "sourceItemId"],
+      "properties": {
+        "actionId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "type": { "const": "focus_source" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "sourceItemId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" }
+      }
+    },
+    "openDrawerAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actionId", "type", "label", "drawer"],
+      "properties": {
+        "actionId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "type": { "const": "open_drawer" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "drawer": { "enum": ["sources", "activity", "connections"] }
+      }
+    },
+    "runScenarioAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actionId", "type", "label", "scenarioId"],
+      "properties": {
+        "actionId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "type": { "const": "run_scenario" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "scenarioId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" }
+      }
+    },
+    "undoEventAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actionId", "type", "label", "eventId"],
+      "properties": {
+        "actionId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "type": { "const": "undo_event" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "eventId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" }
+      }
+    },
+    "downloadArtifactAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actionId", "type", "label", "artifactId", "format"],
+      "properties": {
+        "actionId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "type": { "const": "download_artifact" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "artifactId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
+        "format": { "enum": ["html", "pdf"] }
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "fixtureVersion": "telegram.attachment@1",
+  "sourceItemId": "src_koru_telegram_910001",
+  "attachmentId": "att_koru_parking_receipt_001",
+  "telegramFileId": "fixture_photo_koru_parking_001",
+  "mediaType": "image/jpeg",
+  "localFixturePath": null,
+  "captionAmountMinor": -3240,
+  "currency": "NZD",
+  "receiptOcrRequired": false,
+  "synthetic": true
+}

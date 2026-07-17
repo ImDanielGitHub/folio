@@ -1,0 +1,72 @@
+{
+  "fixtureVersion": "demo.outcomes@1",
+  "workspaceId": "ws_koru_studio",
+  "currency": "NZD",
+  "dataThrough": "2026-07-17T08:00:00+12:00",
+  "source": {
+    "csvRowCount": 10,
+    "postedRowCount": 9,
+    "pendingRowCount": 1,
+    "duplicateTransactionIds": ["txn_koru_010"],
+    "includedBalanceTransactionIds": [
+      "txn_koru_001",
+      "txn_koru_002",
+      "txn_koru_003",
+      "txn_koru_004",
+      "txn_koru_005",
+      "txn_koru_006",
+      "txn_koru_007",
+      "txn_koru_008",
+      "txn_koru_009"
+    ]
+  },
+  "totalsBeforeCorrection": {
+    "currentBalanceMinor": 504576,
+    "businessIncomeMinor": 725000,
+    "businessExpenseMinor": 139499,
+    "personalExpenseMinor": 62450,
+    "unresolvedExpenseMinor": 18475,
+    "protectedReserveMinor": 200000,
+    "projectedLowPointMinor": 190077,
+    "reserveShortfallMinor": 9923
+  },
+  "forecastEvents": [
+    { "date": "2026-07-17", "label": "Starting cleared balance", "amountMinor": 504576, "balanceMinor": 504576 },
+    { "date": "2026-07-28", "label": "Expected client payment", "amountMinor": 125000, "balanceMinor": 629576 },
+    { "date": "2026-07-31", "label": "Studio rent", "amountMinor": -120000, "balanceMinor": 509576 },
+    { "date": "2026-08-03", "label": "Adobe", "amountMinor": -8999, "balanceMinor": 500577 },
+    { "date": "2026-08-04", "label": "Xero", "amountMinor": -7500, "balanceMinor": 493077 },
+    { "date": "2026-08-07", "label": "Planned laptop", "amountMinor": -300000, "balanceMinor": 193077 },
+    { "date": "2026-08-10", "label": "Figma", "amountMinor": -3000, "balanceMinor": 190077 }
+  ],
+  "findings": [
+    { "findingId": "finding_koru_missing_receipt", "kind": "missing_document", "amountMinor": 18475, "evidenceIds": ["evd_koru_mitre10_row"] },
+    { "findingId": "finding_koru_duplicate_pending", "kind": "duplicate", "amountMinor": 3000, "evidenceIds": ["evd_koru_figma_posted", "evd_koru_figma_pending"] },
+    { "findingId": "finding_koru_reserve_risk", "kind": "reserve_risk", "amountMinor": 9923, "evidenceIds": ["evd_koru_forecast_30d"] }
+  ],
+  "correction": {
+    "merchantContains": "MITRE 10",
+    "maximumAmountMinor": 50000,
+    "targetClassification": "business",
+    "targetCategory": "client_fit_out_materials",
+    "affectedTransactionIds": ["txn_koru_006"],
+    "unresolvedExpenseMinorAfter": 0,
+    "businessExpenseMinorAfter": 157974,
+    "projectedLowPointMinorAfter": 190077,
+    "reserveShortfallMinorAfter": 9923,
+    "forecastAmountChangeReason": "Classification changes forecast provenance and uncertainty, not the bank cash amount."
+  },
+  "idempotency": {
+    "secondDailyCloseStatus": "no_op",
+    "newFindings": 0,
+    "newArtifacts": 0,
+    "newOwnerMessages": 0
+  },
+  "telegram": {
+    "inboundSourceItemId": "src_koru_telegram_910001",
+    "captionAmountMinor": -3240,
+    "outboundKind": "reserve_risk_brief",
+    "correlationId": "corr_koru_daily_close_20260717",
+    "liveSendRequired": false
+  }
+}

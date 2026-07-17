@@ -1,0 +1,18 @@
+{
+  "receiptVersion": "model.receipt@1",
+  "receiptId": "modelrcpt_koru_local_plan",
+  "workspaceId": "ws_koru_studio",
+  "threadId": "thr_koru_studio_main",
+  "runId": "run_koru_owner_turn_mitre10",
+  "mode": "local",
+  "provider": "lm_studio",
+  "model": "fixture-local-model",
+  "capability": "compile_plan",
+  "inputCharacters": 1480,
+  "outputCharacters": 712,
+  "latencyMs": 860,
+  "schemaRepairAttempts": 0,
+  "status": "completed",
+  "modelSuppliedFinanceTotals": false,
+  "occurredAt": "2026-07-17T08:04:00+12:00"
+}

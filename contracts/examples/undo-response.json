@@ -1,0 +1,73 @@
+{
+  "requestId": "req_koru_undo_mitre10",
+  "originalEventId": "evt_koru_rule_mitre10",
+  "undoEvent": {
+    "eventVersion": "finance.event@1",
+    "eventId": "evt_koru_rule_mitre10_undo",
+    "workspaceId": "ws_koru_studio",
+    "eventType": "event.undone",
+    "actor": "owner",
+    "occurredAt": "2026-07-17T08:05:00+12:00",
+    "sourceTurnId": "turn_koru_owner_mitre10",
+    "reason": "Owner requested the exact prior state.",
+    "beforeJson": {
+      "items": [
+        { "targetType": "transaction", "targetId": "txn_koru_006", "fields": [
+          { "name": "classification", "value": "business" },
+          { "name": "category", "value": "client_fit_out_materials" },
+          { "name": "ruleId", "value": "rule_koru_mitre10_under_500" }
+        ] }
+      ]
+    },
+    "afterJson": {
+      "items": [
+        { "targetType": "transaction", "targetId": "txn_koru_006", "fields": [
+          { "name": "classification", "value": "unresolved" },
+          { "name": "category", "value": null },
+          { "name": "ruleId", "value": null }
+        ] }
+      ]
+    },
+    "scopeJson": {
+      "merchantContains": "MITRE 10",
+      "maximumAmountMinor": 50000,
+      "currency": "NZD",
+      "targetClassification": "business",
+      "targetCategory": "client_fit_out_materials",
+      "transactionIds": ["txn_koru_006"]
+    },
+    "evidenceIds": ["evd_koru_mitre10_row", "evd_koru_owner_claim_mitre10"],
+    "inverseEventJson": {
+      "eventType": "classification_rule.reapplied",
+      "reason": "Reapply the same deterministic classification event.",
+      "beforeJson": {
+        "items": [
+          { "targetType": "transaction", "targetId": "txn_koru_006", "fields": [
+            { "name": "classification", "value": "unresolved" },
+            { "name": "category", "value": null },
+            { "name": "ruleId", "value": null }
+          ] }
+        ]
+      },
+      "afterJson": {
+        "items": [
+          { "targetType": "transaction", "targetId": "txn_koru_006", "fields": [
+            { "name": "classification", "value": "business" },
+            { "name": "category", "value": "client_fit_out_materials" },
+            { "name": "ruleId", "value": "rule_koru_mitre10_under_500" }
+          ] }
+        ]
+      },
+      "scopeJson": {
+        "merchantContains": "MITRE 10",
+        "maximumAmountMinor": 50000,
+        "currency": "NZD",
+        "targetClassification": "business",
+        "targetCategory": "client_fit_out_materials",
+        "transactionIds": ["txn_koru_006"]
+      }
+    },
+    "correlationId": "corr_koru_rule_mitre10"
+  },
+  "snapshotId": "snap_koru_after_undo"
+}

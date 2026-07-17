@@ -1,0 +1,24 @@
+{
+  "name": "standalone-finance-agent",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Local-first finance agent desktop workspace",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "contracts:check": "uv run --project services/api python scripts/contracts_check.py",
+    "lint": "node scripts/not-implemented.mjs lint integration",
+    "typecheck": "node scripts/not-implemented.mjs typecheck integration",
+    "test": "node scripts/not-implemented.mjs test integration",
+    "dev": "node scripts/not-implemented.mjs dev coordinator-integration",
+    "demo:reset": "node scripts/not-implemented.mjs demo:reset finance-core",
+    "demo:daily-close": "node scripts/not-implemented.mjs demo:daily-close finance-core",
+    "test:golden": "node scripts/not-implemented.mjs test:golden coordinator-integration",
+    "test:local-model": "node scripts/not-implemented.mjs test:local-model agent-harness",
+    "test:cloud-model": "node scripts/not-implemented.mjs test:cloud-model agent-harness",
+    "test:telegram-live": "node scripts/not-implemented.mjs test:telegram-live connectors"
+  }
+}

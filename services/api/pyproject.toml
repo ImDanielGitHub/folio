@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "standalone-finance-agent-api"
+version = "0.0.0"
+description = "Loopback API for the standalone local-first finance agent"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = "LicenseRef-Provisional-Apache-2.0"
+dependencies = [
+  "fastapi>=0.116,<1",
+  "httpx>=0.28,<1",
+  "jsonschema>=4.25,<5",
+  "pydantic>=2.11,<3",
+  "python-multipart>=0.0.20,<1",
+  "reportlab>=4.4,<5",
+  "uvicorn>=0.35,<1",
+]
+
+[dependency-groups]
+dev = [
+  "mypy>=1.17,<2",
+  "pytest>=8.4,<9",
+  "pytest-asyncio>=1.1,<2",
+  "ruff>=0.12,<1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/finance_agent"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["finance_agent"]
+mypy_path = "src"

@@ -1,0 +1,96 @@
+{
+  "eventVersion": "finance.event@1",
+  "eventId": "evt_koru_rule_mitre10",
+  "workspaceId": "ws_koru_studio",
+  "eventType": "classification_rule.created",
+  "actor": "agent",
+  "occurredAt": "2026-07-17T08:04:01+12:00",
+  "sourceTurnId": "turn_koru_owner_mitre10",
+  "reason": "Owner said Mitre 10 was a client fit-out and limited the rule to purchases below NZD 500.",
+  "beforeJson": {
+    "items": [
+      { "targetType": "transaction", "targetId": "txn_koru_006", "fields": [
+        { "name": "classification", "value": "unresolved" },
+        { "name": "category", "value": null },
+        { "name": "ruleId", "value": null }
+      ] },
+      { "targetType": "classification_rule", "targetId": "rule_koru_mitre10_under_500", "fields": [
+        { "name": "active", "value": false }
+      ] },
+      { "targetType": "forecast", "targetId": "forecast_koru_30d", "fields": [
+        { "name": "unresolvedExpenseMinor", "value": 18475 },
+        { "name": "projectedLowPointMinor", "value": 190077 },
+        { "name": "reserveShortfallMinor", "value": 9923 }
+      ] }
+    ]
+  },
+  "afterJson": {
+    "items": [
+      { "targetType": "transaction", "targetId": "txn_koru_006", "fields": [
+        { "name": "classification", "value": "business" },
+        { "name": "category", "value": "client_fit_out_materials" },
+        { "name": "ruleId", "value": "rule_koru_mitre10_under_500" }
+      ] },
+      { "targetType": "classification_rule", "targetId": "rule_koru_mitre10_under_500", "fields": [
+        { "name": "active", "value": true }
+      ] },
+      { "targetType": "forecast", "targetId": "forecast_koru_30d", "fields": [
+        { "name": "unresolvedExpenseMinor", "value": 0 },
+        { "name": "projectedLowPointMinor", "value": 190077 },
+        { "name": "reserveShortfallMinor", "value": 9923 }
+      ] }
+    ]
+  },
+  "scopeJson": {
+    "merchantContains": "MITRE 10",
+    "maximumAmountMinor": 50000,
+    "currency": "NZD",
+    "targetClassification": "business",
+    "targetCategory": "client_fit_out_materials",
+    "transactionIds": ["txn_koru_006"]
+  },
+  "evidenceIds": ["evd_koru_mitre10_row", "evd_koru_owner_claim_mitre10", "evd_koru_forecast_30d"],
+  "inverseEventJson": {
+    "eventType": "event.undone",
+    "reason": "Restore the exact state before the classification rule was committed.",
+    "beforeJson": {
+      "items": [
+        { "targetType": "transaction", "targetId": "txn_koru_006", "fields": [
+          { "name": "classification", "value": "business" },
+          { "name": "category", "value": "client_fit_out_materials" },
+          { "name": "ruleId", "value": "rule_koru_mitre10_under_500" }
+        ] },
+        { "targetType": "classification_rule", "targetId": "rule_koru_mitre10_under_500", "fields": [{ "name": "active", "value": true }] },
+        { "targetType": "forecast", "targetId": "forecast_koru_30d", "fields": [
+          { "name": "unresolvedExpenseMinor", "value": 0 },
+          { "name": "projectedLowPointMinor", "value": 190077 },
+          { "name": "reserveShortfallMinor", "value": 9923 }
+        ] }
+      ]
+    },
+    "afterJson": {
+      "items": [
+        { "targetType": "transaction", "targetId": "txn_koru_006", "fields": [
+          { "name": "classification", "value": "unresolved" },
+          { "name": "category", "value": null },
+          { "name": "ruleId", "value": null }
+        ] },
+        { "targetType": "classification_rule", "targetId": "rule_koru_mitre10_under_500", "fields": [{ "name": "active", "value": false }] },
+        { "targetType": "forecast", "targetId": "forecast_koru_30d", "fields": [
+          { "name": "unresolvedExpenseMinor", "value": 18475 },
+          { "name": "projectedLowPointMinor", "value": 190077 },
+          { "name": "reserveShortfallMinor", "value": 9923 }
+        ] }
+      ]
+    },
+    "scopeJson": {
+      "merchantContains": "MITRE 10",
+      "maximumAmountMinor": 50000,
+      "currency": "NZD",
+      "targetClassification": "business",
+      "targetCategory": "client_fit_out_materials",
+      "transactionIds": ["txn_koru_006"]
+    }
+  },
+  "correlationId": "corr_koru_rule_mitre10"
+}
