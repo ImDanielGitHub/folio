@@ -1,0 +1,210 @@
+# ruff: noqa: E501
+"""SQLite connection, migration, and shared persistence seams."""
+
+from __future__ import annotations
+
+import json
+import sqlite3
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any
+
+from .migrations import MIGRATIONS
+
+
+def canonical_json(value: Any) -> str:
+    """Encode a value deterministically for hashes, receipts, and JSON columns."""
+
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+
+
+class SQLiteStore:
+    """One-workspace SQLite store with explicit transactional boundaries."""
+
+    def __init__(self, database_path: str | Path) -> None:
+        self.database_path = str(database_path)
+        if self.database_path != ":memory:":
+            Path(self.database_path).expanduser().resolve().parent.mkdir(
+                parents=True, exist_ok=True
+            )
+
+    def connect(self) -> sqlite3.Connection:
+        connection = sqlite3.connect(self.database_path, timeout=30.0)
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA foreign_keys = ON")
+        connection.execute("PRAGMA busy_timeout = 30000")
+        return connection
+
+    def migrate(self) -> None:
+        with self.connect() as connection:
+            connection.execute("PRAGMA journal_mode = WAL")
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS schema_migrations (
+                    version INTEGER PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            applied = {
+                int(row["version"])
+                for row in connection.execute("SELECT version FROM schema_migrations")
+            }
+            for migration in MIGRATIONS:
+                if migration.version in applied:
+                    continue
+                connection.executescript(migration.sql)
+                connection.execute(
+                    "INSERT INTO schema_migrations(version, name) VALUES (?, ?)",
+                    (migration.version, migration.name),
+                )
+
+    def recreate(self) -> None:
+        """Recreate the synthetic demo database for the explicit demo-reset path."""
+
+        with self.connect() as connection:
+            connection.execute("PRAGMA foreign_keys = OFF")
+            triggers = connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'trigger'"
+            ).fetchall()
+            tables = connection.execute(
+                """
+                SELECT name FROM sqlite_master
+                WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
+                """
+            ).fetchall()
+            for row in triggers:
+                connection.execute(f'DROP TRIGGER IF EXISTS "{row["name"]}"')
+            for row in tables:
+                connection.execute(f'DROP TABLE IF EXISTS "{row["name"]}"')
+            connection.commit()
+        self.migrate()
+
+    @contextmanager
+    def transaction(self, *, immediate: bool = True) -> Iterator[sqlite3.Connection]:
+        connection = self.connect()
+        try:
+            connection.execute("BEGIN IMMEDIATE" if immediate else "BEGIN")
+            yield connection
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+
+    def fetch_one(
+        self,
+        sql: str,
+        parameters: Sequence[Any] | Mapping[str, Any] = (),
+    ) -> sqlite3.Row | None:
+        with self.connect() as connection:
+            return connection.execute(sql, parameters).fetchone()
+
+    def fetch_all(
+        self,
+        sql: str,
+        parameters: Sequence[Any] | Mapping[str, Any] = (),
+    ) -> list[sqlite3.Row]:
+        with self.connect() as connection:
+            return list(connection.execute(sql, parameters).fetchall())
+
+    def record_turn(
+        self,
+        *,
+        turn_id: str,
+        workspace_id: str,
+        thread_id: str,
+        role: str,
+        content: str,
+        occurred_at: str,
+        status: str = "complete",
+        evidence_ids: Sequence[str] = (),
+    ) -> None:
+        with self.transaction() as connection:
+            connection.execute(
+                """
+                INSERT INTO conversation_turns(
+                    turn_id, workspace_id, thread_id, role, content, occurred_at,
+                    status, evidence_ids_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    turn_id,
+                    workspace_id,
+                    thread_id,
+                    role,
+                    content,
+                    occurred_at,
+                    status,
+                    canonical_json(list(evidence_ids)),
+                ),
+            )
+
+    def record_claim(self, claim: Mapping[str, Any]) -> None:
+        """Persist a typed claim without treating transcript prose as current truth."""
+
+        with self.transaction() as connection:
+            supersedes = claim.get("supersedesClaimId")
+            if supersedes is not None:
+                connection.execute(
+                    "UPDATE claims SET status = 'superseded' WHERE claim_id = ?",
+                    (supersedes,),
+                )
+            connection.execute(
+                """
+                INSERT INTO claims(
+                    claim_id, workspace_id, claim_type, statement, source_turn_id,
+                    scope_json, effective_date, recorded_at, status, supersedes_claim_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    claim["claimId"],
+                    claim["workspaceId"],
+                    claim["claimType"],
+                    claim["statement"],
+                    claim["sourceTurnId"],
+                    canonical_json(claim["scope"]),
+                    claim["effectiveDate"],
+                    claim["recordedAt"],
+                    claim.get("status", "active"),
+                    supersedes,
+                ),
+            )
+
+    def save_dialogue_frame(self, frame: Mapping[str, Any]) -> None:
+        with self.transaction() as connection:
+            connection.execute(
+                """
+                UPDATE dialogue_frames
+                SET is_current = 0
+                WHERE workspace_id = ? AND thread_id = ? AND is_current = 1
+                """,
+                (frame["workspaceId"], frame["threadId"]),
+            )
+            connection.execute(
+                """
+                INSERT INTO dialogue_frames(
+                    frame_id, workspace_id, thread_id, frame_json, updated_at, is_current
+                ) VALUES (?, ?, ?, ?, ?, 1)
+                """,
+                (
+                    frame["frameId"],
+                    frame["workspaceId"],
+                    frame["threadId"],
+                    canonical_json(frame),
+                    frame["updatedAt"],
+                ),
+            )
+
+    def current_dialogue_frame(self, workspace_id: str, thread_id: str) -> dict[str, Any] | None:
+        row = self.fetch_one(
+            """
+            SELECT frame_json FROM dialogue_frames
+            WHERE workspace_id = ? AND thread_id = ? AND is_current = 1
+            """,
+            (workspace_id, thread_id),
+        )
+        return None if row is None else json.loads(row["frame_json"])
