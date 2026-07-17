@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from enum import StrEnum
@@ -109,9 +110,7 @@ class DialogueFrame:
             "threadId": self.thread_id,
             "updatedAt": self.updated_at.isoformat(),
             "currentIntent": self.current_intent,
-            "activeQuestion": self.active_question.to_contract()
-            if self.active_question
-            else None,
+            "activeQuestion": self.active_question.to_contract() if self.active_question else None,
             "claims": [claim.to_contract() for claim in self.claims],
         }
 
@@ -147,6 +146,30 @@ class ConversationStore(Protocol):
     def recent_turns(self, thread_id: str, limit: int) -> tuple[TranscriptTurn, ...]: ...
 
 
+class WorkingUnderstandingPort(Protocol):
+    """Query-specific, model-independent business context for one agent run."""
+
+    def ingest_owner_turn(
+        self,
+        *,
+        workspace_id: str,
+        thread_id: str,
+        turn_id: str,
+        content: str,
+        occurred_at: datetime,
+    ) -> None: ...
+
+    def context_for(
+        self,
+        *,
+        workspace_id: str,
+        thread_id: str,
+        run_id: str,
+        query: str,
+        max_characters: int,
+    ) -> Mapping[str, object]: ...
+
+
 @dataclass(slots=True)
 class InMemoryConversationStore:
     """Fixture-friendly store; persistence is supplied by the coordinator/Task 1."""
@@ -177,11 +200,32 @@ class ContextAssembler:
         self.max_characters = max_characters
         self.recent_turn_limit = recent_turn_limit
 
+    @staticmethod
+    def _bounded_turn_content(content: str, limit: int) -> str:
+        """Keep both the opening and the material tail of a long owner answer."""
+
+        if len(content) <= limit:
+            return content
+        marker = " …[earlier detail compacted]… "
+        available = max(0, limit - len(marker))
+        head = max(1, available * 2 // 3)
+        tail = max(1, available - head)
+        return f"{content[:head]}{marker}{content[-tail:]}"
+
+    @staticmethod
+    def _working_entries(value: dict[str, object]) -> list[object] | None:
+        for key in ("entries", "hits", "retrievedFacts"):
+            entries = value.get(key)
+            if isinstance(entries, list):
+                return entries
+        return None
+
     def assemble(
         self,
         frame: DialogueFrame,
         turns: tuple[TranscriptTurn, ...],
         finance_projection: dict[str, object],
+        working_understanding: Mapping[str, object] | None = None,
     ) -> str:
         active_claims = [
             {
@@ -208,10 +252,17 @@ class ContextAssembler:
             {
                 "turnId": turn.turn_id,
                 "role": turn.role,
-                "content": turn.content[: max(256, self.max_characters // 4)],
+                "content": self._bounded_turn_content(
+                    turn.content, max(256, self.max_characters // 4)
+                ),
             }
             for turn in turns[-self.recent_turn_limit :]
         ]
+        understanding = dict(working_understanding or {})
+        for key in ("entries", "hits", "retrievedFacts"):
+            entries = understanding.get(key)
+            if isinstance(entries, list):
+                understanding[key] = list(entries)
         packet = {
             "dialogue": {
                 "currentIntent": frame.current_intent,
@@ -222,15 +273,25 @@ class ContextAssembler:
             "claims": active_claims,
             "recentTurnsUntrusted": recent,
             "financeProjection": finance_projection,
+            "workingUnderstanding": understanding,
         }
         encoded = json.dumps(packet, ensure_ascii=False, separators=(",", ":"))
+        working_entries = self._working_entries(understanding)
+        while len(encoded) > self.max_characters and working_entries:
+            working_entries.pop()
+            encoded = json.dumps(packet, ensure_ascii=False, separators=(",", ":"))
         while len(encoded) > self.max_characters and len(recent) > 1:
             recent.pop(0)
             encoded = json.dumps(packet, ensure_ascii=False, separators=(",", ":"))
         if len(encoded) > self.max_characters and recent:
             overflow = len(encoded) - self.max_characters
             content = str(recent[-1]["content"])
-            recent[-1]["content"] = content[: max(0, len(content) - overflow - 32)]
+            recent[-1]["content"] = self._bounded_turn_content(
+                content, max(64, len(content) - overflow - 32)
+            )
+            encoded = json.dumps(packet, ensure_ascii=False, separators=(",", ":"))
+        while len(encoded) > self.max_characters and len(active_claims) > 1:
+            active_claims.pop(0)
             encoded = json.dumps(packet, ensure_ascii=False, separators=(",", ":"))
         if len(encoded) > self.max_characters:
             raise ValueError("typed context metadata exceeds the configured context budget")

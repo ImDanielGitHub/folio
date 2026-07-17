@@ -231,6 +231,19 @@ def create_router() -> APIRouter:
     async def model_capabilities(services: Services) -> dict[str, object]:
         return dict(await services.model_capabilities())
 
+    @router.get("/v1/diagnostics/working-understanding")
+    async def working_understanding_diagnostics(
+        services: Services,
+        workspace_id: Annotated[str, Query(alias="workspaceId")],
+        run_id: Annotated[str | None, Query(alias="runId")] = None,
+    ) -> dict[str, object]:
+        return dict(
+            await services.working_understanding_diagnostics(
+                workspace_id=workspace_id,
+                run_id=run_id,
+            )
+        )
+
     return router
 
 

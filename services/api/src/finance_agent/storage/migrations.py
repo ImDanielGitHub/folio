@@ -416,4 +416,480 @@ MIGRATIONS: tuple[Migration, ...] = (
             ON outbox_messages(workspace_id, status, created_at);
         """,
     ),
+    Migration(
+        version=3,
+        name="agent_receipts",
+        sql="""
+        CREATE TABLE work_receipts (
+            receipt_id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id),
+            run_id TEXT NOT NULL,
+            receipt_json TEXT NOT NULL,
+            content_hash TEXT NOT NULL CHECK (length(content_hash) = 64),
+            created_at TEXT NOT NULL
+        );
+
+        CREATE INDEX work_receipts_run ON work_receipts(run_id, created_at);
+        """,
+    ),
+    Migration(
+        version=4,
+        name="dialogue_frame_revision",
+        sql="""
+        ALTER TABLE dialogue_frames
+            ADD COLUMN revision INTEGER NOT NULL DEFAULT 1 CHECK (revision >= 1);
+        """,
+    ),
+    Migration(
+        version=5,
+        name="append_only_working_knowledge",
+        sql="""
+        CREATE TABLE knowledge_owner_statements (
+            statement_id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id),
+            thread_id TEXT NOT NULL,
+            turn_id TEXT NOT NULL,
+            content TEXT NOT NULL CHECK (length(trim(content)) > 0),
+            task_scope TEXT NOT NULL CHECK (length(trim(task_scope)) > 0),
+            occurred_at TEXT NOT NULL,
+            content_hash TEXT NOT NULL CHECK (length(content_hash) = 64),
+            record_hash TEXT NOT NULL CHECK (length(record_hash) = 64),
+            UNIQUE (workspace_id, turn_id)
+        );
+
+        CREATE TABLE knowledge_documents (
+            document_id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id),
+            document_kind TEXT NOT NULL CHECK (document_kind IN (
+                'receipt', 'invoice', 'contract', 'bank_statement', 'tax_document',
+                'correspondence', 'note', 'other'
+            )),
+            title TEXT NOT NULL CHECK (length(trim(title)) > 0),
+            task_scope TEXT NOT NULL CHECK (length(trim(task_scope)) > 0),
+            source_kind TEXT NOT NULL CHECK (source_kind IN (
+                'owner_turn', 'document', 'finance_evidence', 'connector',
+                'deterministic', 'model_candidate', 'import'
+            )),
+            source_ref TEXT NOT NULL CHECK (length(trim(source_ref)) > 0),
+            source_turn_id TEXT REFERENCES conversation_turns(turn_id),
+            evidence_id TEXT REFERENCES evidence_links(evidence_id),
+            received_at TEXT NOT NULL,
+            effective_from TEXT,
+            effective_until TEXT,
+            extracted_text TEXT NOT NULL,
+            content_hash TEXT NOT NULL CHECK (length(content_hash) = 64),
+            metadata_json TEXT NOT NULL,
+            record_hash TEXT NOT NULL CHECK (length(record_hash) = 64),
+            CHECK (
+                effective_from IS NULL OR effective_until IS NULL
+                OR effective_from <= effective_until
+            )
+        );
+
+        CREATE TABLE knowledge_entities (
+            entity_id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id),
+            entity_type TEXT NOT NULL CHECK (entity_type IN (
+                'person', 'organisation', 'place', 'project', 'customer', 'supplier',
+                'account', 'asset', 'service', 'event', 'other'
+            )),
+            canonical_name TEXT NOT NULL CHECK (length(trim(canonical_name)) > 0),
+            task_scope TEXT NOT NULL CHECK (length(trim(task_scope)) > 0),
+            source_kind TEXT NOT NULL CHECK (source_kind IN (
+                'owner_turn', 'document', 'finance_evidence', 'connector',
+                'deterministic', 'model_candidate', 'import'
+            )),
+            source_ref TEXT NOT NULL CHECK (length(trim(source_ref)) > 0),
+            source_turn_id TEXT REFERENCES conversation_turns(turn_id),
+            source_document_id TEXT REFERENCES knowledge_documents(document_id),
+            evidence_id TEXT REFERENCES evidence_links(evidence_id),
+            recorded_at TEXT NOT NULL,
+            metadata_json TEXT NOT NULL,
+            record_hash TEXT NOT NULL CHECK (length(record_hash) = 64)
+        );
+
+        CREATE TABLE knowledge_facts (
+            fact_id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id),
+            question_axis TEXT NOT NULL
+                CHECK (question_axis IN ('who', 'what', 'where', 'when', 'why')),
+            fact_kind TEXT NOT NULL CHECK (fact_kind IN ('attribute', 'relationship')),
+            subject_entity_id TEXT NOT NULL REFERENCES knowledge_entities(entity_id),
+            predicate TEXT NOT NULL CHECK (length(trim(predicate)) > 0),
+            scope_key TEXT NOT NULL CHECK (length(trim(scope_key)) > 0),
+            object_kind TEXT NOT NULL CHECK (object_kind IN (
+                'text', 'entity', 'document', 'date', 'datetime', 'boolean', 'number', 'json'
+            )),
+            object_text TEXT NOT NULL,
+            object_entity_id TEXT REFERENCES knowledge_entities(entity_id),
+            object_document_id TEXT REFERENCES knowledge_documents(document_id),
+            value_json TEXT NOT NULL,
+            value_hash TEXT NOT NULL CHECK (length(value_hash) = 64),
+            task_scope TEXT NOT NULL CHECK (length(trim(task_scope)) > 0),
+            source_kind TEXT NOT NULL CHECK (source_kind IN (
+                'owner_turn', 'document', 'finance_evidence', 'connector',
+                'deterministic', 'model_candidate', 'import'
+            )),
+            source_ref TEXT NOT NULL CHECK (length(trim(source_ref)) > 0),
+            source_turn_id TEXT REFERENCES conversation_turns(turn_id),
+            source_document_id TEXT REFERENCES knowledge_documents(document_id),
+            evidence_id TEXT REFERENCES evidence_links(evidence_id),
+            basis TEXT NOT NULL CHECK (basis IN (
+                'explicit', 'document_extracted', 'deterministic', 'inferred', 'hypothetical'
+            )),
+            confidence REAL NOT NULL CHECK (confidence >= 0.0 AND confidence <= 1.0),
+            valid_from TEXT,
+            valid_until TEXT,
+            recorded_at TEXT NOT NULL,
+            supersedes_fact_id TEXT REFERENCES knowledge_facts(fact_id),
+            record_hash TEXT NOT NULL CHECK (length(record_hash) = 64),
+            CHECK (
+                valid_from IS NULL OR valid_until IS NULL OR valid_from <= valid_until
+            ),
+            CHECK (
+                (object_kind = 'entity' AND object_entity_id IS NOT NULL
+                    AND object_document_id IS NULL AND fact_kind = 'relationship')
+                OR (object_kind = 'document' AND object_document_id IS NOT NULL
+                    AND object_entity_id IS NULL)
+                OR (object_kind NOT IN ('entity', 'document')
+                    AND object_entity_id IS NULL AND object_document_id IS NULL
+                    AND fact_kind = 'attribute')
+            )
+        );
+
+        CREATE TABLE knowledge_fact_status_events (
+            event_id TEXT PRIMARY KEY,
+            fact_id TEXT NOT NULL REFERENCES knowledge_facts(fact_id),
+            workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id),
+            sequence INTEGER NOT NULL CHECK (sequence >= 1),
+            status TEXT NOT NULL CHECK (status IN (
+                'candidate', 'active', 'superseded', 'retracted', 'rejected'
+            )),
+            reason TEXT NOT NULL,
+            source_kind TEXT NOT NULL CHECK (source_kind IN (
+                'owner_turn', 'document', 'finance_evidence', 'connector',
+                'deterministic', 'model_candidate', 'import'
+            )),
+            source_ref TEXT NOT NULL CHECK (length(trim(source_ref)) > 0),
+            source_turn_id TEXT REFERENCES conversation_turns(turn_id),
+            occurred_at TEXT NOT NULL,
+            record_hash TEXT NOT NULL CHECK (length(record_hash) = 64),
+            UNIQUE (fact_id, sequence)
+        );
+
+        CREATE TABLE knowledge_contradictions (
+            contradiction_id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id),
+            fact_a_id TEXT NOT NULL REFERENCES knowledge_facts(fact_id),
+            fact_b_id TEXT NOT NULL REFERENCES knowledge_facts(fact_id),
+            scope_key TEXT NOT NULL,
+            predicate TEXT NOT NULL,
+            reason_code TEXT NOT NULL CHECK (reason_code IN (
+                'same_scope_different_value', 'manual'
+            )),
+            detected_at TEXT NOT NULL,
+            record_hash TEXT NOT NULL CHECK (length(record_hash) = 64),
+            CHECK (fact_a_id < fact_b_id),
+            UNIQUE (workspace_id, fact_a_id, fact_b_id, reason_code)
+        );
+
+        CREATE TABLE knowledge_contradiction_status_events (
+            event_id TEXT PRIMARY KEY,
+            contradiction_id TEXT NOT NULL
+                REFERENCES knowledge_contradictions(contradiction_id),
+            workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id),
+            sequence INTEGER NOT NULL CHECK (sequence >= 1),
+            status TEXT NOT NULL CHECK (status IN ('open', 'resolved', 'dismissed')),
+            reason TEXT NOT NULL,
+            source_kind TEXT NOT NULL CHECK (source_kind IN (
+                'owner_turn', 'document', 'finance_evidence', 'connector',
+                'deterministic', 'model_candidate', 'import'
+            )),
+            source_ref TEXT NOT NULL CHECK (length(trim(source_ref)) > 0),
+            source_turn_id TEXT REFERENCES conversation_turns(turn_id),
+            occurred_at TEXT NOT NULL,
+            record_hash TEXT NOT NULL CHECK (length(record_hash) = 64),
+            UNIQUE (contradiction_id, sequence)
+        );
+
+        CREATE TABLE knowledge_business_summary_revisions (
+            summary_id TEXT NOT NULL,
+            revision INTEGER NOT NULL CHECK (revision >= 1),
+            workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id),
+            as_of TEXT NOT NULL,
+            limit_per_axis INTEGER NOT NULL CHECK (limit_per_axis >= 1),
+            query_version TEXT NOT NULL,
+            payload_json TEXT NOT NULL,
+            source_fact_ids_json TEXT NOT NULL,
+            source_status_event_ids_json TEXT NOT NULL,
+            source_finding_ids_json TEXT NOT NULL,
+            content_hash TEXT NOT NULL CHECK (length(content_hash) = 64),
+            generated_at TEXT NOT NULL,
+            PRIMARY KEY (summary_id, revision),
+            UNIQUE (workspace_id, as_of, query_version, content_hash)
+        );
+
+        CREATE TABLE knowledge_context_retrieval_receipts (
+            receipt_id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id),
+            run_id TEXT,
+            thread_id TEXT,
+            task_scope TEXT NOT NULL,
+            query_hash TEXT NOT NULL CHECK (length(query_hash) = 64),
+            as_of TEXT NOT NULL,
+            include_candidates INTEGER NOT NULL CHECK (include_candidates IN (0, 1)),
+            result_ids_json TEXT NOT NULL,
+            selected_ids_json TEXT NOT NULL,
+            dropped_ids_json TEXT NOT NULL,
+            max_characters INTEGER NOT NULL CHECK (max_characters >= 1),
+            packet_characters INTEGER NOT NULL CHECK (packet_characters >= 0),
+            packet_hash TEXT NOT NULL CHECK (length(packet_hash) = 64),
+            source_status_event_ids_json TEXT NOT NULL,
+            query_version TEXT NOT NULL,
+            content_hash TEXT NOT NULL CHECK (length(content_hash) = 64),
+            retrieved_at TEXT NOT NULL
+        );
+
+        CREATE VIRTUAL TABLE knowledge_fts USING fts5(
+            workspace_id UNINDEXED,
+            record_type UNINDEXED,
+            record_id UNINDEXED,
+            task_scope UNINDEXED,
+            title,
+            body,
+            tags,
+            tokenize = 'unicode61 remove_diacritics 2'
+        );
+
+        CREATE TRIGGER knowledge_owner_statements_fts_insert
+        AFTER INSERT ON knowledge_owner_statements
+        BEGIN
+            INSERT INTO knowledge_fts(
+                workspace_id, record_type, record_id, task_scope, title, body, tags
+            ) VALUES (
+                NEW.workspace_id, 'owner_statement', NEW.statement_id, NEW.task_scope,
+                'Owner said', NEW.content, 'owner explicit ' || NEW.task_scope
+            );
+        END;
+
+        CREATE TRIGGER knowledge_documents_fts_insert
+        AFTER INSERT ON knowledge_documents
+        BEGIN
+            INSERT INTO knowledge_fts(
+                workspace_id, record_type, record_id, task_scope, title, body, tags
+            ) VALUES (
+                NEW.workspace_id, 'document', NEW.document_id, NEW.task_scope,
+                NEW.title, NEW.extracted_text, NEW.document_kind || ' ' || NEW.task_scope
+            );
+        END;
+
+        CREATE TRIGGER knowledge_entities_fts_insert
+        AFTER INSERT ON knowledge_entities
+        BEGIN
+            INSERT INTO knowledge_fts(
+                workspace_id, record_type, record_id, task_scope, title, body, tags
+            ) VALUES (
+                NEW.workspace_id, 'entity', NEW.entity_id, NEW.task_scope,
+                NEW.canonical_name, NEW.canonical_name,
+                NEW.entity_type || ' ' || NEW.task_scope
+            );
+        END;
+
+        CREATE TRIGGER knowledge_facts_fts_insert
+        AFTER INSERT ON knowledge_facts
+        BEGIN
+            INSERT INTO knowledge_fts(
+                workspace_id, record_type, record_id, task_scope, title, body, tags
+            ) VALUES (
+                NEW.workspace_id, 'fact', NEW.fact_id, NEW.task_scope,
+                (SELECT canonical_name FROM knowledge_entities
+                    WHERE entity_id = NEW.subject_entity_id) || ' ' || NEW.predicate,
+                NEW.object_text,
+                NEW.question_axis || ' ' || NEW.fact_kind || ' ' || NEW.predicate
+                    || ' ' || NEW.task_scope
+            );
+        END;
+
+        CREATE TRIGGER knowledge_fact_supersession_scope_guard
+        BEFORE INSERT ON knowledge_facts
+        WHEN NEW.supersedes_fact_id IS NOT NULL
+          AND NOT EXISTS (
+              SELECT 1
+              FROM knowledge_facts AS previous
+              WHERE previous.fact_id = NEW.supersedes_fact_id
+                AND previous.workspace_id = NEW.workspace_id
+                AND previous.question_axis = NEW.question_axis
+                AND previous.subject_entity_id = NEW.subject_entity_id
+                AND previous.predicate = NEW.predicate
+                AND previous.scope_key = NEW.scope_key
+          )
+        BEGIN
+            SELECT RAISE(ABORT, 'knowledge supersession must keep the same fact scope');
+        END;
+
+        CREATE TRIGGER knowledge_fact_status_workspace_guard
+        BEFORE INSERT ON knowledge_fact_status_events
+        WHEN NOT EXISTS (
+            SELECT 1 FROM knowledge_facts
+            WHERE fact_id = NEW.fact_id AND workspace_id = NEW.workspace_id
+        )
+        BEGIN
+            SELECT RAISE(ABORT, 'knowledge fact status workspace mismatch');
+        END;
+
+        CREATE TRIGGER knowledge_contradiction_workspace_guard
+        BEFORE INSERT ON knowledge_contradictions
+        WHEN NOT EXISTS (
+            SELECT 1
+            FROM knowledge_facts AS fact_a
+            JOIN knowledge_facts AS fact_b ON fact_b.fact_id = NEW.fact_b_id
+            WHERE fact_a.fact_id = NEW.fact_a_id
+              AND fact_a.workspace_id = NEW.workspace_id
+              AND fact_b.workspace_id = NEW.workspace_id
+        )
+        BEGIN
+            SELECT RAISE(ABORT, 'knowledge contradiction workspace mismatch');
+        END;
+
+        CREATE TRIGGER knowledge_contradiction_status_workspace_guard
+        BEFORE INSERT ON knowledge_contradiction_status_events
+        WHEN NOT EXISTS (
+            SELECT 1 FROM knowledge_contradictions
+            WHERE contradiction_id = NEW.contradiction_id
+              AND workspace_id = NEW.workspace_id
+        )
+        BEGIN
+            SELECT RAISE(ABORT, 'knowledge contradiction status workspace mismatch');
+        END;
+
+        CREATE INDEX knowledge_owner_statements_workspace_time
+            ON knowledge_owner_statements(workspace_id, occurred_at, turn_id);
+        CREATE INDEX knowledge_documents_workspace_scope
+            ON knowledge_documents(workspace_id, task_scope, received_at);
+        CREATE INDEX knowledge_entities_workspace_type
+            ON knowledge_entities(workspace_id, entity_type, canonical_name);
+        CREATE INDEX knowledge_facts_current_scope
+            ON knowledge_facts(workspace_id, scope_key, predicate, valid_from, valid_until);
+        CREATE INDEX knowledge_fact_status_order
+            ON knowledge_fact_status_events(fact_id, sequence DESC);
+        CREATE INDEX knowledge_contradictions_workspace
+            ON knowledge_contradictions(workspace_id, detected_at);
+        CREATE INDEX knowledge_contradiction_status_order
+            ON knowledge_contradiction_status_events(contradiction_id, sequence DESC);
+        CREATE INDEX knowledge_summaries_workspace_as_of
+            ON knowledge_business_summary_revisions(workspace_id, as_of, revision DESC);
+        CREATE INDEX knowledge_retrieval_receipts_workspace_time
+            ON knowledge_context_retrieval_receipts(workspace_id, retrieved_at);
+        CREATE INDEX knowledge_retrieval_receipts_run
+            ON knowledge_context_retrieval_receipts(workspace_id, run_id, retrieved_at);
+
+        CREATE TRIGGER knowledge_owner_statements_no_update
+        BEFORE UPDATE ON knowledge_owner_statements
+        BEGIN
+            SELECT RAISE(ABORT, 'knowledge owner statements are append-only');
+        END;
+
+        CREATE TRIGGER knowledge_owner_statements_no_delete
+        BEFORE DELETE ON knowledge_owner_statements
+        BEGIN
+            SELECT RAISE(ABORT, 'knowledge owner statements are append-only');
+        END;
+
+        CREATE TRIGGER knowledge_documents_no_update
+        BEFORE UPDATE ON knowledge_documents
+        BEGIN
+            SELECT RAISE(ABORT, 'knowledge documents are append-only');
+        END;
+
+        CREATE TRIGGER knowledge_documents_no_delete
+        BEFORE DELETE ON knowledge_documents
+        BEGIN
+            SELECT RAISE(ABORT, 'knowledge documents are append-only');
+        END;
+
+        CREATE TRIGGER knowledge_entities_no_update
+        BEFORE UPDATE ON knowledge_entities
+        BEGIN
+            SELECT RAISE(ABORT, 'knowledge entities are append-only');
+        END;
+
+        CREATE TRIGGER knowledge_entities_no_delete
+        BEFORE DELETE ON knowledge_entities
+        BEGIN
+            SELECT RAISE(ABORT, 'knowledge entities are append-only');
+        END;
+
+        CREATE TRIGGER knowledge_facts_no_update
+        BEFORE UPDATE ON knowledge_facts
+        BEGIN
+            SELECT RAISE(ABORT, 'knowledge facts are append-only');
+        END;
+
+        CREATE TRIGGER knowledge_facts_no_delete
+        BEFORE DELETE ON knowledge_facts
+        BEGIN
+            SELECT RAISE(ABORT, 'knowledge facts are append-only');
+        END;
+
+        CREATE TRIGGER knowledge_fact_status_no_update
+        BEFORE UPDATE ON knowledge_fact_status_events
+        BEGIN
+            SELECT RAISE(ABORT, 'knowledge fact status events are append-only');
+        END;
+
+        CREATE TRIGGER knowledge_fact_status_no_delete
+        BEFORE DELETE ON knowledge_fact_status_events
+        BEGIN
+            SELECT RAISE(ABORT, 'knowledge fact status events are append-only');
+        END;
+
+        CREATE TRIGGER knowledge_contradictions_no_update
+        BEFORE UPDATE ON knowledge_contradictions
+        BEGIN
+            SELECT RAISE(ABORT, 'knowledge contradictions are append-only');
+        END;
+
+        CREATE TRIGGER knowledge_contradictions_no_delete
+        BEFORE DELETE ON knowledge_contradictions
+        BEGIN
+            SELECT RAISE(ABORT, 'knowledge contradictions are append-only');
+        END;
+
+        CREATE TRIGGER knowledge_contradiction_status_no_update
+        BEFORE UPDATE ON knowledge_contradiction_status_events
+        BEGIN
+            SELECT RAISE(ABORT, 'knowledge contradiction status events are append-only');
+        END;
+
+        CREATE TRIGGER knowledge_contradiction_status_no_delete
+        BEFORE DELETE ON knowledge_contradiction_status_events
+        BEGIN
+            SELECT RAISE(ABORT, 'knowledge contradiction status events are append-only');
+        END;
+
+        CREATE TRIGGER knowledge_business_summaries_no_update
+        BEFORE UPDATE ON knowledge_business_summary_revisions
+        BEGIN
+            SELECT RAISE(ABORT, 'knowledge business summaries are append-only');
+        END;
+
+        CREATE TRIGGER knowledge_business_summaries_no_delete
+        BEFORE DELETE ON knowledge_business_summary_revisions
+        BEGIN
+            SELECT RAISE(ABORT, 'knowledge business summaries are append-only');
+        END;
+
+        CREATE TRIGGER knowledge_retrieval_receipts_no_update
+        BEFORE UPDATE ON knowledge_context_retrieval_receipts
+        BEGIN
+            SELECT RAISE(ABORT, 'knowledge retrieval receipts are append-only');
+        END;
+
+        CREATE TRIGGER knowledge_retrieval_receipts_no_delete
+        BEFORE DELETE ON knowledge_context_retrieval_receipts
+        BEGIN
+            SELECT RAISE(ABORT, 'knowledge retrieval receipts are append-only');
+        END;
+        """,
+    ),
 )

@@ -3,9 +3,9 @@ requires = ["hatchling>=1.27,<2"]
 build-backend = "hatchling.build"
 
 [project]
-name = "standalone-finance-agent-api"
+name = "folio-local-api"
 version = "0.0.0"
-description = "Loopback API for the standalone local-first finance agent"
+description = "Loopback API for the Folio local-first finance workspace"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 license = "LicenseRef-Provisional-Apache-2.0"

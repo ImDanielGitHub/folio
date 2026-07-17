@@ -11,8 +11,8 @@ from dataclasses import asdict, dataclass
 from io import BytesIO
 from typing import Any
 
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen.canvas import Canvas
+from reportlab.lib.pagesizes import A4  # type: ignore[import-untyped]
+from reportlab.pdfgen.canvas import Canvas  # type: ignore[import-untyped]
 
 from finance_agent.storage import canonical_json
 

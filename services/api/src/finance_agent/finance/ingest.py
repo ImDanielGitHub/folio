@@ -10,6 +10,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import cast
 
 from finance_agent.storage import SQLiteStore, canonical_json
 
@@ -133,8 +134,8 @@ class CSVImporter:
                 (workspace_id, digest, mapping_version),
             ).fetchone()
             if existing is not None:
-                transaction_ids = tuple(
-                    row["transaction_id"]
+                existing_transaction_ids = tuple(
+                    cast(str, row["transaction_id"])
                     for row in connection.execute(
                         """
                         SELECT t.transaction_id
@@ -152,7 +153,7 @@ class CSVImporter:
                     mapping_version=mapping_version,
                     row_count=existing["row_count"],
                     duplicate_import=True,
-                    transaction_ids=transaction_ids,
+                    transaction_ids=existing_transaction_ids,
                 )
 
             id_collision = connection.execute(

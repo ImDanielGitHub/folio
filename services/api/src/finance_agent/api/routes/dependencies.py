@@ -72,6 +72,13 @@ class RouteServices(Protocol):
 
     async def model_capabilities(self) -> Mapping[str, object]: ...
 
+    async def working_understanding_diagnostics(
+        self,
+        *,
+        workspace_id: str,
+        run_id: str | None = None,
+    ) -> Mapping[str, object]: ...
+
 
 def get_route_services(request: Request) -> RouteServices:
     services = getattr(request.app.state, "finance_route_services", None)

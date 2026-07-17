@@ -862,15 +862,20 @@ class FinanceEngine:
             {
                 "turnId": row["turn_id"],
                 "role": row["role"],
-                "content": row["content"],
+                # The complete owner answer remains in SQLite. The frozen UI snapshot
+                # deliberately projects a bounded rendering copy.
+                "content": str(row["content"])[:8000],
                 "occurredAt": row["occurred_at"],
                 "status": row["status"],
                 "evidenceIds": _json(row["evidence_ids_json"]),
             }
             for row in connection.execute(
                 """
-                SELECT * FROM conversation_turns
-                WHERE workspace_id = ? AND thread_id = ? ORDER BY occurred_at, turn_id
+                SELECT * FROM (
+                    SELECT * FROM conversation_turns
+                    WHERE workspace_id = ? AND thread_id = ?
+                    ORDER BY occurred_at DESC, turn_id DESC LIMIT 200
+                ) ORDER BY occurred_at, turn_id
                 """,
                 (WORKSPACE_ID, THREAD_ID),
             )
@@ -1017,6 +1022,8 @@ class FinanceEngine:
         *,
         derived: DerivedState,
         occurred_at: str,
+        snapshot_id: str = "snap_koru_after_close",
+        close_turn_id: str = "turn_koru_morning_close",
     ) -> dict[str, Any]:
         surface = living_brief_surface(
             totals=derived.totals,
@@ -1025,7 +1032,7 @@ class FinanceEngine:
         )
         self.set_surface(connection, surface)
         existing_turn = connection.execute(
-            "SELECT 1 FROM conversation_turns WHERE turn_id = 'turn_koru_morning_close'"
+            "SELECT 1 FROM conversation_turns WHERE turn_id = ?", (close_turn_id,)
         ).fetchone()
         if existing_turn is None:
             connection.execute(
@@ -1033,9 +1040,10 @@ class FinanceEngine:
                 INSERT INTO conversation_turns(
                     turn_id, workspace_id, thread_id, role, content, occurred_at,
                     status, evidence_ids_json
-                ) VALUES ('turn_koru_morning_close', ?, ?, 'agent', ?, ?, 'complete', ?)
+                ) VALUES (?, ?, ?, 'agent', ?, ?, 'complete', ?)
                 """,
                 (
+                    close_turn_id,
                     WORKSPACE_ID,
                     THREAD_ID,
                     "Morning close is complete. I held out one likely duplicate, found one expense "
@@ -1054,7 +1062,7 @@ class FinanceEngine:
             )
         return self.store_snapshot(
             connection,
-            snapshot_id="snap_koru_after_close",
+            snapshot_id=snapshot_id,
             totals=derived.totals,
             occurred_at=occurred_at,
         )

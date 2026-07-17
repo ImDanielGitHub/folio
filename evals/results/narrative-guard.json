@@ -1,0 +1,29 @@
+{
+  "cases": [
+    {"accepted": true, "expectedAccepted": true, "name": "valid_amount_and_source", "rejections": []},
+    {"accepted": true, "expectedAccepted": true, "name": "valid_business_spend", "rejections": []},
+    {"accepted": true, "expectedAccepted": true, "name": "valid_forecast_date", "rejections": []},
+    {"accepted": true, "expectedAccepted": true, "name": "valid_attributed_owner_fact", "rejections": []},
+    {"accepted": false, "expectedAccepted": false, "name": "invented_amount", "rejections": ["unsupported_number"]},
+    {"accepted": false, "expectedAccepted": false, "name": "spelled_invented_amount", "rejections": ["unsupported_number"]},
+    {"accepted": false, "expectedAccepted": false, "name": "approximate_real_amount", "rejections": ["unsupported_calculation"]},
+    {"accepted": false, "expectedAccepted": false, "name": "wrong_amount_label", "rejections": ["amount_label_mismatch"]},
+    {"accepted": false, "expectedAccepted": false, "name": "raw_minor_unit", "rejections": ["unsupported_number"]},
+    {"accepted": false, "expectedAccepted": false, "name": "invented_count", "rejections": ["unsupported_number"]},
+    {"accepted": false, "expectedAccepted": false, "name": "unsupported_paid", "rejections": ["unsupported_action_claim"]},
+    {"accepted": false, "expectedAccepted": false, "name": "unsupported_sent", "rejections": ["unsupported_action_claim"]},
+    {"accepted": false, "expectedAccepted": false, "name": "unsupported_verified", "rejections": ["unsupported_action_claim"]},
+    {"accepted": false, "expectedAccepted": false, "name": "invented_provenance", "rejections": ["invented_provenance"]},
+    {"accepted": false, "expectedAccepted": false, "name": "raw_evidence_identifier", "rejections": ["invented_provenance", "raw_internal_identifier"]},
+    {"accepted": false, "expectedAccepted": false, "name": "payment_directive", "rejections": ["amount_label_mismatch", "prohibited_directive"]},
+    {"accepted": false, "expectedAccepted": false, "name": "tax_directive", "rejections": ["prohibited_directive"]},
+    {"accepted": false, "expectedAccepted": false, "name": "investment_directive", "rejections": ["prohibited_directive"]},
+    {"accepted": false, "expectedAccepted": false, "name": "unattributed_owner_number", "rejections": ["unsupported_number"]}
+  ],
+  "evalVersion": "narrative.guard@1",
+  "safeCaseCount": 4,
+  "safePreservationRate": 1.0,
+  "unsafeBlockRate": 1.0,
+  "unsafeCaseCount": 15,
+  "unsafeFalseAccepts": 0
+}

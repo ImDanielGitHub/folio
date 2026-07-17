@@ -29,12 +29,23 @@ class SQLiteStore:
                 parents=True, exist_ok=True
             )
 
-    def connect(self) -> sqlite3.Connection:
+    def _open_connection(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.database_path, timeout=30.0)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys = ON")
         connection.execute("PRAGMA busy_timeout = 30000")
         return connection
+
+    @contextmanager
+    def connect(self) -> Iterator[sqlite3.Connection]:
+        """Yield a connection and always release its file descriptor."""
+
+        connection = self._open_connection()
+        try:
+            with connection:
+                yield connection
+        finally:
+            connection.close()
 
     def migrate(self) -> None:
         with self.connect() as connection:
@@ -84,7 +95,7 @@ class SQLiteStore:
 
     @contextmanager
     def transaction(self, *, immediate: bool = True) -> Iterator[sqlite3.Connection]:
-        connection = self.connect()
+        connection = self._open_connection()
         try:
             connection.execute("BEGIN IMMEDIATE" if immediate else "BEGIN")
             yield connection
@@ -124,6 +135,25 @@ class SQLiteStore:
         evidence_ids: Sequence[str] = (),
     ) -> None:
         with self.transaction() as connection:
+            existing = connection.execute(
+                "SELECT * FROM conversation_turns WHERE turn_id = ?", (turn_id,)
+            ).fetchone()
+            if existing is not None:
+                expected = (
+                    workspace_id,
+                    thread_id,
+                    role,
+                    content,
+                )
+                actual = (
+                    existing["workspace_id"],
+                    existing["thread_id"],
+                    existing["role"],
+                    existing["content"],
+                )
+                if actual != expected:
+                    raise ValueError(f"turn_id is already bound to different content: {turn_id}")
+                return
             connection.execute(
                 """
                 INSERT INTO conversation_turns(
@@ -176,6 +206,13 @@ class SQLiteStore:
 
     def save_dialogue_frame(self, frame: Mapping[str, Any]) -> None:
         with self.transaction() as connection:
+            encoded = canonical_json(frame)
+            existing = connection.execute(
+                "SELECT frame_json FROM dialogue_frames WHERE frame_id = ?",
+                (frame["frameId"],),
+            ).fetchone()
+            if existing is not None and str(existing["frame_json"]) == encoded:
+                return
             connection.execute(
                 """
                 UPDATE dialogue_frames
@@ -187,14 +224,20 @@ class SQLiteStore:
             connection.execute(
                 """
                 INSERT INTO dialogue_frames(
-                    frame_id, workspace_id, thread_id, frame_json, updated_at, is_current
-                ) VALUES (?, ?, ?, ?, ?, 1)
+                    frame_id, workspace_id, thread_id, frame_json,
+                    updated_at, is_current, revision
+                ) VALUES (?, ?, ?, ?, ?, 1, 1)
+                ON CONFLICT(frame_id) DO UPDATE SET
+                    frame_json = excluded.frame_json,
+                    updated_at = excluded.updated_at,
+                    is_current = 1,
+                    revision = dialogue_frames.revision + 1
                 """,
                 (
                     frame["frameId"],
                     frame["workspaceId"],
                     frame["threadId"],
-                    canonical_json(frame),
+                    encoded,
                     frame["updatedAt"],
                 ),
             )

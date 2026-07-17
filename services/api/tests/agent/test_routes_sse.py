@@ -63,6 +63,13 @@ class FixtureRouteServices:
     async def model_capabilities(self) -> dict[str, object]:
         return {"modes": {"local": {"status": "unavailable"}}}
 
+    async def working_understanding_diagnostics(self, **kwargs: Any) -> dict[str, object]:
+        return {
+            "workspaceId": kwargs["workspace_id"],
+            "summary": {"revision": 1},
+            "privacy": {"rawTurnsIncluded": False},
+        }
+
 
 @pytest.fixture
 def app() -> FastAPI:
@@ -91,6 +98,7 @@ async def test_all_frozen_routes_are_exposed_and_fixture_calls_run(app: FastAPI)
         ("POST", "/v1/events/{event_id}/undo"),
         ("GET", "/v1/artifacts/{artifact_id}"),
         ("GET", "/v1/models/capabilities"),
+        ("GET", "/v1/diagnostics/working-understanding"),
     }
     assert expected <= paths
     async with httpx.AsyncClient(
@@ -101,6 +109,12 @@ async def test_all_frozen_routes_are_exposed_and_fixture_calls_run(app: FastAPI)
         assert snapshot.json()["snapshotId"] == "snap_koru_after_close"
         artifact = await client.get("/v1/artifacts/artifact_koru_owner_pack_html")
         assert artifact.status_code == 200
+        diagnostics = await client.get(
+            "/v1/diagnostics/working-understanding",
+            params={"workspaceId": "ws_koru_studio"},
+        )
+        assert diagnostics.status_code == 200
+        assert diagnostics.json()["privacy"]["rawTurnsIncluded"] is False
 
 
 @pytest.mark.asyncio

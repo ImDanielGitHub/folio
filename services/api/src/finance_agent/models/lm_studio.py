@@ -73,6 +73,59 @@ class LMStudioAdapter:
         value = item.get("id") or item.get("model") or item.get("key")
         return str(value) if value else None
 
+    @classmethod
+    def _model_aliases(cls, item: dict[str, Any]) -> set[str]:
+        aliases: set[str] = set()
+        model_id = cls._model_id(item)
+        if model_id:
+            aliases.add(model_id)
+        loaded_instances = item.get("loaded_instances", [])
+        if isinstance(loaded_instances, list):
+            for instance in loaded_instances:
+                if not isinstance(instance, dict):
+                    continue
+                instance_id = instance.get("id")
+                if instance_id:
+                    aliases.add(str(instance_id))
+        return aliases
+
+    @staticmethod
+    def _advertised_capabilities(item: dict[str, Any]) -> set[str]:
+        capabilities = item.get("capabilities", [])
+        if isinstance(capabilities, list):
+            return {str(value) for value in capabilities}
+        if not isinstance(capabilities, dict):
+            return set()
+
+        advertised: set[str] = set()
+        for name, value in capabilities.items():
+            if value is True or isinstance(value, dict) and (
+                value.get("supported") is True or value.get("enabled") is True
+            ):
+                advertised.add(str(name))
+        return advertised
+
+    @staticmethod
+    def _response_text(data: object) -> str:
+        if not isinstance(data, dict):
+            raise ValueError("LM Studio returned a non-object response")
+        choices = data.get("choices")
+        if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+            raise ValueError("LM Studio returned no response choice")
+        message = choices[0].get("message")
+        if not isinstance(message, dict):
+            raise ValueError("LM Studio returned no response message")
+
+        # LM Studio's OpenAI-compatible endpoint can expose a reasoning model's final
+        # structured object in `reasoning_content` while leaving `content` empty. Prefer
+        # ordinary content whenever it is present; the reasoning field is a documented
+        # compatibility fallback, not a second model or provider route.
+        for field_name in ("content", "reasoning_content"):
+            value = message.get(field_name)
+            if isinstance(value, str) and value.strip():
+                return value
+        raise ValueError("LM Studio returned no non-empty text content")
+
     @staticmethod
     def _state(item: dict[str, Any]) -> str:
         return str(item.get("state") or item.get("status") or "").lower()
@@ -104,14 +157,29 @@ class LMStudioAdapter:
                 context_length=None,
                 detail="LM Studio is running but no model is available.",
             )
-        selected = next(
-            (
-                item
-                for item in inventory
-                if self.config.model and self._model_id(item) == self.config.model
-            ),
-            inventory[0],
-        )
+        if self.config.model:
+            selected = next(
+                (
+                    item
+                    for item in inventory
+                    if self.config.model in self._model_aliases(item)
+                ),
+                None,
+            )
+            if selected is None:
+                return CapabilityCard(
+                    provider=self.provider,
+                    status=AdapterStatus.NO_MODELS,
+                    model=self.config.model,
+                    tier=0,
+                    tier_measured=False,
+                    structured_output=False,
+                    tool_use=False,
+                    context_length=None,
+                    detail="The configured LM Studio model is not available.",
+                )
+        else:
+            selected = inventory[0]
         state = self._state(selected)
         if state in {"loading", "downloading", "initializing"}:
             status = AdapterStatus.LOADING
@@ -119,21 +187,20 @@ class LMStudioAdapter:
             status = AdapterStatus.FAILED
         else:
             status = AdapterStatus.READY
-        capabilities = selected.get("capabilities", [])
-        advertised = (
-            {str(value) for value in capabilities}
-            if isinstance(capabilities, list)
-            else set()
-        )
+        advertised = self._advertised_capabilities(selected)
         context = selected.get("max_context_length") or selected.get("context_length")
         return CapabilityCard(
             provider=self.provider,
             status=status,
-            model=self._model_id(selected),
+            model=self.config.model or self._model_id(selected),
             tier=0,
             tier_measured=False,
             structured_output=status is AdapterStatus.READY,
-            tool_use="tool_use" in advertised,
+            tool_use=bool(
+                advertised.intersection(
+                    {"tool_use", "tool_calls", "trained_for_tool_use"}
+                )
+            ),
             context_length=int(context) if isinstance(context, int | float) else None,
             detail=(
                 "Model discovered; behavioural tier has not been measured."
@@ -171,11 +238,8 @@ class LMStudioAdapter:
                 f"{self.config.base_url.rstrip('/')}/chat/completions", json=payload
             )
             response.raise_for_status()
-            data = response.json()
-            text = data["choices"][0]["message"]["content"]
-            if not isinstance(text, str):
-                raise ValueError("LM Studio returned non-text model content")
-        except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
+            text = self._response_text(response.json())
+        except (httpx.HTTPError, TypeError, ValueError) as exc:
             raise ModelUnavailable("LM Studio inference failed without a valid response") from exc
         return ModelResponse(
             text=text,
