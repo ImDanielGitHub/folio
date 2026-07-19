@@ -11,7 +11,7 @@
     "runId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
     "sequence": { "type": "integer", "minimum": 1 },
     "occurredAt": { "type": "string", "format": "date-time" },
-    "type": { "enum": ["run.started", "message.delta", "message.completed", "stage.started", "stage.completed", "tool.started", "tool.completed", "state.snapshot", "state.patch", "surface.replace", "surface.patch", "receipt.committed", "run.failed", "run.completed"] },
+    "type": { "enum": ["run.started", "message.delta", "message.completed", "stage.started", "stage.completed", "tool.started", "tool.completed", "state.snapshot", "state.patch", "surface.replace", "surface.patch", "receipt.committed", "run.failed", "run.completed", "run.cancelled"] },
     "payload": { "type": "object" }
   },
   "allOf": [
@@ -28,11 +28,12 @@
     { "if": { "properties": { "type": { "const": "surface.patch" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/surfacePatch" } } } },
     { "if": { "properties": { "type": { "const": "receipt.committed" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/receiptCommitted" } } } },
     { "if": { "properties": { "type": { "const": "run.failed" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/runFailed" } } } },
-    { "if": { "properties": { "type": { "const": "run.completed" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/runCompleted" } } } }
+    { "if": { "properties": { "type": { "const": "run.completed" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/runCompleted" } } } },
+    { "if": { "properties": { "type": { "const": "run.cancelled" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/runCancelled" } } } }
   ],
   "$defs": {
     "stage": { "enum": ["ingest", "normalise", "deduplicate", "apply_rules", "classify", "findings", "forecast", "owner_pack", "receipt", "telegram_outbox"] },
-    "runStarted": { "type": "object", "additionalProperties": false, "required": ["mode", "reason", "resumeFromSequence"], "properties": { "mode": { "enum": ["local", "hybrid", "cloud"] }, "reason": { "enum": ["daily_close", "owner_turn", "undo", "demo_reset"] }, "resumeFromSequence": { "type": ["integer", "null"], "minimum": 1 } } },
+    "runStarted": { "type": "object", "additionalProperties": false, "required": ["mode", "reason", "resumeFromSequence"], "properties": { "mode": { "enum": ["local", "hybrid", "cloud"] }, "reason": { "enum": ["daily_close", "owner_turn", "undo", "demo_reset", "akahu_sync"] }, "resumeFromSequence": { "type": ["integer", "null"], "minimum": 1 } } },
     "messageDelta": { "type": "object", "additionalProperties": false, "required": ["turnId", "delta"], "properties": { "turnId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" }, "delta": { "type": "string", "minLength": 1, "maxLength": 4000 } } },
     "messageCompleted": { "type": "object", "additionalProperties": false, "required": ["turnId", "content", "evidenceIds"], "properties": { "turnId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" }, "content": { "type": "string", "minLength": 1, "maxLength": 8000 }, "evidenceIds": { "type": "array", "items": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" }, "maxItems": 30, "uniqueItems": true } } },
     "stageStarted": { "type": "object", "additionalProperties": false, "required": ["stage"], "properties": { "stage": { "$ref": "#/$defs/stage" } } },
@@ -45,6 +46,7 @@
     "surfacePatch": { "type": "object", "additionalProperties": false, "required": ["surfaceId", "surface"], "properties": { "surfaceId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" }, "surface": { "$ref": "https://finance-agent.local/schemas/finance-surface-spec.schema.json" } } },
     "receiptCommitted": { "type": "object", "additionalProperties": false, "required": ["receiptType", "receiptId", "contentHash", "evidenceIds"], "properties": { "receiptType": { "enum": ["daily_close", "finance_event", "owner_pack", "model", "egress", "telegram_outbox"] }, "receiptId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" }, "contentHash": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/sha256" }, "evidenceIds": { "type": "array", "items": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" }, "maxItems": 50, "uniqueItems": true } } },
     "runFailed": { "type": "object", "additionalProperties": false, "required": ["code", "message", "retryable", "lastSequence"], "properties": { "code": { "enum": ["schema_invalid", "sequence_gap", "finance_service_failed", "model_unavailable", "cancelled"] }, "message": { "type": "string", "minLength": 1, "maxLength": 500 }, "retryable": { "type": "boolean" }, "lastSequence": { "type": "integer", "minimum": 1 } } },
-    "runCompleted": { "type": "object", "additionalProperties": false, "required": ["status", "durationMs", "snapshotId", "receiptId"], "properties": { "status": { "enum": ["completed", "no_op"] }, "durationMs": { "type": "integer", "minimum": 0 }, "snapshotId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" }, "receiptId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" } } }
+    "runCompleted": { "type": "object", "additionalProperties": false, "required": ["status", "durationMs", "snapshotId", "receiptId"], "properties": { "status": { "enum": ["completed", "no_op"] }, "durationMs": { "type": "integer", "minimum": 0 }, "snapshotId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" }, "receiptId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" } } },
+    "runCancelled": { "type": "object", "additionalProperties": false, "required": ["reason", "lastSequence"], "properties": { "reason": { "enum": ["owner_stop", "timeout"] }, "lastSequence": { "type": "integer", "minimum": 1 } } }
   }
 }

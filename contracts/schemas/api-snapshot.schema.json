@@ -159,7 +159,7 @@
       "required": ["sourceItemId", "sourceType", "label", "digest", "receivedAt", "status", "rowCount"],
       "properties": {
         "sourceItemId": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/id" },
-        "sourceType": { "enum": ["csv", "telegram_fixture", "owner_claim"] },
+        "sourceType": { "enum": ["csv", "telegram_fixture", "owner_claim", "akahu_fixture"] },
         "label": { "type": "string", "minLength": 1, "maxLength": 160 },
         "digest": { "$ref": "https://finance-agent.local/schemas/common.schema.json#/$defs/sha256" },
         "receivedAt": { "type": "string", "format": "date-time" },

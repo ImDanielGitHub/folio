@@ -22,8 +22,20 @@ FIELD_CLASSES = frozenset(
     }
 )
 FORBIDDEN_KEYS = frozenset(
-    {"raw_source_files", "rawSourceFiles", "raw_ledger_history", "rawLedgerHistory", "api_key"}
+    {
+        "raw_source_files",
+        "rawSourceFiles",
+        "raw_ledger_history",
+        "rawLedgerHistory",
+        "api_key",
+        "apiKey",
+    }
 )
+FORBIDDEN_KEY_MARKERS = ("apikey", "token", "password", "secret")
+MAX_OWNER_CLAIMS = 20
+MAX_OWNER_CLAIM_STATEMENT_CHARACTERS = 1_000
+MAX_PROJECTION_ITEMS = 512
+MAX_PROJECTION_CHARACTERS = 32_000
 
 
 class ReceiptModel(BaseModel):
@@ -121,20 +133,69 @@ class ProjectionPolicy:
         allowed = self._POLICY.get((mode, purpose), frozenset())
         if not allowed:
             raise ValueError(f"egress is not allowed for {mode.value}/{purpose.value}")
-        if FORBIDDEN_KEYS & set(source):
+        if self._contains_forbidden_key(source):
             raise ValueError("raw source/ledger/secret fields are never eligible for egress")
         payload = {key: source[key] for key in sorted(allowed) if key in source}
         if not payload:
             raise ValueError("no policy-allowed typed projection fields were supplied")
+        payload = self._bound_owner_claims(payload)
         field_paths = tuple(self._field_paths(payload))
         encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+        item_count = self._item_count(payload)
+        if item_count > MAX_PROJECTION_ITEMS or len(encoded) > MAX_PROJECTION_CHARACTERS:
+            raise ValueError("typed projection exceeds the bounded egress envelope")
         return ProjectionEnvelope(
             payload=payload,
             field_classes=tuple(payload),
             field_paths=field_paths,
-            item_count=self._item_count(payload),
+            item_count=item_count,
             character_count=len(encoded),
         )
+
+    @staticmethod
+    def _normalise_key(key: object) -> str:
+        return "".join(character for character in str(key).lower() if character.isalnum())
+
+    @classmethod
+    def _contains_forbidden_key(cls, value: object) -> bool:
+        if isinstance(value, Mapping):
+            for key, child in value.items():
+                normalised = cls._normalise_key(key)
+                if (
+                    str(key) in FORBIDDEN_KEYS
+                    or any(marker in normalised for marker in FORBIDDEN_KEY_MARKERS)
+                    or cls._contains_forbidden_key(child)
+                ):
+                    return True
+            return False
+        if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray):
+            return any(cls._contains_forbidden_key(child) for child in value)
+        return False
+
+    @classmethod
+    def _bound_owner_claims(cls, payload: Mapping[str, object]) -> dict[str, object]:
+        bounded = dict(payload)
+        raw_claims = bounded.get("owner_claims")
+        if raw_claims is None:
+            return bounded
+        if not isinstance(raw_claims, Sequence) or isinstance(
+            raw_claims, str | bytes | bytearray
+        ):
+            raise ValueError("owner_claims must be a sequence")
+        claims: list[dict[str, object]] = []
+        for index, raw_claim in enumerate(raw_claims):
+            if index >= MAX_OWNER_CLAIMS:
+                break
+            if not isinstance(raw_claim, Mapping):
+                raise ValueError("each owner claim must be an object")
+            claim = dict(raw_claim)
+            if "statement" in claim:
+                claim["statement"] = str(claim["statement"])[
+                    :MAX_OWNER_CLAIM_STATEMENT_CHARACTERS
+                ]
+            claims.append(claim)
+        bounded["owner_claims"] = claims
+        return bounded
 
     @classmethod
     def _field_paths(cls, value: object, prefix: str = "") -> list[str]:

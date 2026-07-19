@@ -42,6 +42,14 @@ class FixtureRouteServices:
     async def ingest_telegram_fixture(self, **kwargs: Any) -> dict[str, object]:
         return {"sourceItemId": "src_koru_telegram_910001", "status": "ingested"}
 
+    async def ingest_akahu_fixture(self, **kwargs: Any) -> dict[str, object]:
+        return {
+            "sourceItemId": "src_koru_akahu_anz_everyday",
+            "status": "ingested",
+            "rowCount": 6,
+            "liveSyncAttempted": False,
+        }
+
     async def enqueue_daily_close(self, **kwargs: Any) -> dict[str, object]:
         return {"runId": "run_koru_daily_close_20260717", "status": "queued"}
 
@@ -84,6 +92,7 @@ async def test_all_frozen_routes_are_exposed_and_fixture_calls_run(app: FastAPI)
         ("POST", "/v1/demo/reset"),
         ("POST", "/v1/ingest/csv"),
         ("POST", "/v1/ingest/telegram-fixture"),
+        ("POST", "/v1/ingest/akahu-fixture"),
         ("POST", "/v1/jobs/daily-close"),
         ("GET", "/v1/jobs/{run_id}/events"),
         ("POST", "/v1/threads/{thread_id}/turns"),

@@ -23,7 +23,9 @@ from .classification import (
 )
 from .domain import CashForecast, ClassificationRule, FinanceTotals, Transaction
 from .forecast import koru_30_day_forecast
-from .ingest import CSVImporter, ImportResult, stable_id
+from finance_agent.connectors.akahu_fixture import AkahuFixtureIngestor, AkahuFixtureResult
+
+from .ingest import CSVImporter, ImportResult, stable_id, transaction_id_for
 from .surfaces import (
     cash_scenario_surface,
     living_brief_surface,
@@ -178,6 +180,148 @@ class FinanceEngine:
             received_at=received_at,
         )
 
+    def ingest_akahu_fixture(
+        self,
+        payload: Mapping[str, Any] | None = None,
+        *,
+        source_item_id: str | None = None,
+    ) -> AkahuFixtureResult:
+        """Persist a read-only Akahu fixture sync as source rows + transactions."""
+        parsed = AkahuFixtureIngestor().ingest(payload, source_item_id=source_item_id)
+        with self.store.transaction() as connection:
+            existing = connection.execute(
+                """
+                SELECT source_item_id, row_count, status
+                FROM source_items
+                WHERE workspace_id = ? AND digest = ? AND mapping_version = ?
+                """,
+                (WORKSPACE_ID, parsed.digest, AkahuFixtureIngestor.MAPPING_VERSION),
+            ).fetchone()
+            if existing is not None:
+                return AkahuFixtureResult(
+                    source_item_id=existing["source_item_id"],
+                    status="deduplicated",
+                    account_label=parsed.account_label,
+                    synced_at=parsed.synced_at,
+                    row_count=existing["row_count"],
+                    digest=parsed.digest,
+                    transactions=parsed.transactions,
+                    live_sync_attempted=False,
+                )
+
+            connection.execute(
+                """
+                INSERT INTO source_items(
+                    source_item_id, workspace_id, source_type, label, digest,
+                    mapping_version, received_at, status, row_count
+                ) VALUES (?, ?, 'akahu_fixture', ?, ?, ?, ?, 'pending', ?)
+                """,
+                (
+                    parsed.source_item_id,
+                    WORKSPACE_ID,
+                    parsed.account_label,
+                    parsed.digest,
+                    AkahuFixtureIngestor.MAPPING_VERSION,
+                    parsed.synced_at,
+                    parsed.row_count,
+                ),
+            )
+            source_evidence_id = stable_id("evd", parsed.digest, "akahu_source")
+            connection.execute(
+                """
+                INSERT INTO evidence_links(
+                    evidence_id, workspace_id, source_item_id, source_row_id, label, created_at
+                ) VALUES (?, ?, ?, NULL, ?, ?)
+                """,
+                (
+                    source_evidence_id,
+                    WORKSPACE_ID,
+                    parsed.source_item_id,
+                    f"{parsed.account_label} (Akahu fixture)",
+                    parsed.synced_at,
+                ),
+            )
+            for row_number, txn in enumerate(parsed.transactions, start=1):
+                row_id = stable_id("row", parsed.digest, txn.external_reference)
+                raw = {
+                    "occurredOn": txn.occurred_on,
+                    "description": txn.description,
+                    "amountMinor": txn.amount_minor,
+                    "externalReference": txn.external_reference,
+                    "status": txn.status,
+                    "provider": "akahu",
+                }
+                raw_json = canonical_json(raw)
+                row_hash = hashlib.sha256(
+                    f"{parsed.digest}\0{row_number}\0{raw_json}".encode()
+                ).hexdigest()
+                connection.execute(
+                    """
+                    INSERT INTO source_rows(
+                        source_row_id, source_item_id, row_number, account_id, occurred_on,
+                        description, amount_minor, currency, source_status, external_reference,
+                        mapping_version, row_hash, raw_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'NZD', ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        row_id,
+                        parsed.source_item_id,
+                        row_number,
+                        ACCOUNT_ID,
+                        txn.occurred_on,
+                        txn.description,
+                        txn.amount_minor,
+                        txn.status,
+                        txn.external_reference,
+                        AkahuFixtureIngestor.MAPPING_VERSION,
+                        row_hash,
+                        raw_json,
+                    ),
+                )
+                evidence_id = stable_id("evd", parsed.digest, row_id)
+                connection.execute(
+                    """
+                    INSERT INTO evidence_links(
+                        evidence_id, workspace_id, source_item_id, source_row_id, label, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        evidence_id,
+                        WORKSPACE_ID,
+                        parsed.source_item_id,
+                        row_id,
+                        f"{txn.description} — Akahu row {row_number}",
+                        parsed.synced_at,
+                    ),
+                )
+                transaction_id = transaction_id_for(row_id, parsed.digest)
+                connection.execute(
+                    """
+                    INSERT INTO transactions(
+                        transaction_id, workspace_id, account_id, source_row_id, evidence_id,
+                        occurred_on, description, amount_minor, currency, source_status, status,
+                        classification, category, classification_source, rule_id,
+                        duplicate_of_transaction_id, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'NZD', ?, ?, 'unresolved', NULL,
+                        'unclassified', NULL, NULL, ?, ?)
+                    """,
+                    (
+                        transaction_id,
+                        WORKSPACE_ID,
+                        ACCOUNT_ID,
+                        row_id,
+                        evidence_id,
+                        txn.occurred_on,
+                        txn.description,
+                        txn.amount_minor,
+                        txn.status,
+                        "pending",
+                        parsed.synced_at,
+                        parsed.synced_at,
+                    ),
+                )
+        return parsed
+
     @staticmethod
     def _transaction_from_row(row: sqlite3.Row) -> Transaction:
         return Transaction(
@@ -236,7 +380,9 @@ class FinanceEngine:
             """
             UPDATE source_items
             SET status = 'processed'
-            WHERE workspace_id = ? AND source_type = 'csv' AND status = 'pending'
+            WHERE workspace_id = ?
+              AND source_type IN ('csv', 'akahu_fixture')
+              AND status = 'pending'
             """,
             (WORKSPACE_ID,),
         )
@@ -854,23 +1000,44 @@ class FinanceEngine:
         workspace = connection.execute(
             "SELECT * FROM workspaces WHERE workspace_id = ?", (WORKSPACE_ID,)
         ).fetchone()
-        if workspace is None or workspace["current_surface_json"] is None:
-            raise FinanceStateError("workspace has no current surface")
+        if workspace is None:
+            raise FinanceStateError("workspace is not initialised")
         if totals is None:
             totals, _ = self.preview_state(connection)
+        if workspace["current_surface_json"] is None:
+            current_surface = {
+                "specVersion": "FinanceSurfaceSpec@1",
+                "surfaceId": "surface_koru_pending_close",
+                "surfaceType": "living_brief",
+                "title": "Daily Close pending",
+                "subtitle": "Imported sources are ready for close",
+                "freshness": {
+                    "dataThrough": DATA_THROUGH,
+                    "status": "current",
+                    "timezone": "Pacific/Auckland",
+                },
+                "blocks": [],
+            }
+        else:
+            current_surface = _json(workspace["current_surface_json"])
         turns = [
             {
                 "turnId": row["turn_id"],
                 "role": row["role"],
-                "content": row["content"],
+                # The complete owner answer remains in SQLite. The frozen UI snapshot
+                # deliberately projects a bounded rendering copy.
+                "content": str(row["content"])[:8000],
                 "occurredAt": row["occurred_at"],
                 "status": row["status"],
                 "evidenceIds": _json(row["evidence_ids_json"]),
             }
             for row in connection.execute(
                 """
-                SELECT * FROM conversation_turns
-                WHERE workspace_id = ? AND thread_id = ? ORDER BY occurred_at, turn_id
+                SELECT * FROM (
+                    SELECT * FROM conversation_turns
+                    WHERE workspace_id = ? AND thread_id = ?
+                    ORDER BY occurred_at DESC, turn_id DESC LIMIT 200
+                ) ORDER BY occurred_at, turn_id
                 """,
                 (WORKSPACE_ID, THREAD_ID),
             )
@@ -958,7 +1125,7 @@ class FinanceEngine:
                 "protectedReserveMinor": workspace["protected_reserve_minor"],
             },
             "thread": {"threadId": THREAD_ID, "turns": turns, "activeQuestion": None},
-            "currentSurface": _json(workspace["current_surface_json"]),
+            "currentSurface": current_surface,
             "findings": findings,
             "activity": activity,
             "sources": sources,
@@ -1017,6 +1184,8 @@ class FinanceEngine:
         *,
         derived: DerivedState,
         occurred_at: str,
+        snapshot_id: str = "snap_koru_after_close",
+        close_turn_id: str = "turn_koru_morning_close",
     ) -> dict[str, Any]:
         surface = living_brief_surface(
             totals=derived.totals,
@@ -1025,7 +1194,7 @@ class FinanceEngine:
         )
         self.set_surface(connection, surface)
         existing_turn = connection.execute(
-            "SELECT 1 FROM conversation_turns WHERE turn_id = 'turn_koru_morning_close'"
+            "SELECT 1 FROM conversation_turns WHERE turn_id = ?", (close_turn_id,)
         ).fetchone()
         if existing_turn is None:
             connection.execute(
@@ -1033,9 +1202,10 @@ class FinanceEngine:
                 INSERT INTO conversation_turns(
                     turn_id, workspace_id, thread_id, role, content, occurred_at,
                     status, evidence_ids_json
-                ) VALUES ('turn_koru_morning_close', ?, ?, 'agent', ?, ?, 'complete', ?)
+                ) VALUES (?, ?, ?, 'agent', ?, ?, 'complete', ?)
                 """,
                 (
+                    close_turn_id,
                     WORKSPACE_ID,
                     THREAD_ID,
                     "Morning close is complete. I held out one likely duplicate, found one expense "
@@ -1054,7 +1224,7 @@ class FinanceEngine:
             )
         return self.store_snapshot(
             connection,
-            snapshot_id="snap_koru_after_close",
+            snapshot_id=snapshot_id,
             totals=derived.totals,
             occurred_at=occurred_at,
         )

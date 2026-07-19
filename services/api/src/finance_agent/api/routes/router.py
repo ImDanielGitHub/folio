@@ -37,6 +37,12 @@ class TelegramFixtureRequest(RequestModel):
     )
 
 
+class AkahuFixtureRequest(RequestModel):
+    account: dict[str, Any] | None = None
+    synced_at: str | None = Field(default=None, alias="syncedAt")
+    transactions: list[dict[str, Any]] | None = None
+
+
 class DailyCloseRequest(RequestModel):
     workspace_id: str = Field(alias="workspaceId")
     idempotency_key: str | None = Field(
@@ -108,6 +114,26 @@ def create_router() -> APIRouter:
                 attachment_reference=body.attachment_reference,
             )
         )
+
+    @router.post("/v1/ingest/akahu-fixture")
+    async def ingest_akahu_fixture(
+        services: Services,
+        body: AkahuFixtureRequest | None = None,
+    ) -> dict[str, object]:
+        payload: dict[str, Any] | None = None
+        if body is not None and (
+            body.account is not None
+            or body.transactions is not None
+            or body.synced_at is not None
+        ):
+            payload = {}
+            if body.account is not None:
+                payload["account"] = body.account
+            if body.synced_at is not None:
+                payload["syncedAt"] = body.synced_at
+            if body.transactions is not None:
+                payload["transactions"] = body.transactions
+        return dict(await services.ingest_akahu_fixture(payload=payload))
 
     @router.post("/v1/jobs/daily-close")
     async def enqueue_daily_close(

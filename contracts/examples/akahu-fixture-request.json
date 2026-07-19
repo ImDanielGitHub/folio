@@ -1,0 +1,52 @@
+{
+  "account": {
+    "name": "ANZ Everyday",
+    "maskedNumber": "..4291",
+    "currency": "NZD"
+  },
+  "syncedAt": "2026-07-17T09:40:00+12:00",
+  "transactions": [
+    {
+      "occurredOn": "2026-07-17",
+      "description": "SPARK MOBILE NZ",
+      "amountMinor": -129900,
+      "externalReference": "akahu_koru_phone_001",
+      "status": "posted"
+    },
+    {
+      "occurredOn": "2026-07-16",
+      "description": "BUNNINGS WAREHOUSE",
+      "amountMinor": -8640,
+      "externalReference": "akahu_koru_bunnings_001",
+      "status": "posted"
+    },
+    {
+      "occurredOn": "2026-07-15",
+      "description": "DROPBOX NZ",
+      "amountMinor": -2499,
+      "externalReference": "akahu_koru_dropbox_001",
+      "status": "posted"
+    },
+    {
+      "occurredOn": "2026-07-14",
+      "description": "UNKNOWN CARD PURCHASE",
+      "amountMinor": -5600,
+      "externalReference": "akahu_koru_unknown_001",
+      "status": "posted"
+    },
+    {
+      "occurredOn": "2026-07-13",
+      "description": "XERO NZ SUB",
+      "amountMinor": -7800,
+      "externalReference": "akahu_koru_xero_001",
+      "status": "posted"
+    },
+    {
+      "occurredOn": "2026-07-12",
+      "description": "A MORGAN CONTRACT",
+      "amountMinor": -240000,
+      "externalReference": "akahu_koru_morgan_001",
+      "status": "posted"
+    }
+  ]
+}

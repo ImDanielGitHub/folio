@@ -39,6 +39,12 @@ class RouteServices(Protocol):
         attachment_reference: Mapping[str, object] | None,
     ) -> Mapping[str, object]: ...
 
+    async def ingest_akahu_fixture(
+        self,
+        *,
+        payload: Mapping[str, object] | None,
+    ) -> Mapping[str, object]: ...
+
     async def enqueue_daily_close(
         self, *, workspace_id: str, idempotency_key: str | None
     ) -> Mapping[str, object]: ...

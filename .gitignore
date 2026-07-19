@@ -5,12 +5,21 @@
 
 # JavaScript
 node_modules/
+node_modules
+node_modules */
+**/node_modules 2/
+**/node_modules 2
 .pnpm-store/
+
+# Local agent / editor state
+.cursor/
 dist/
+dist-electron/
 build/
 coverage/
 playwright-report/
 test-results/
+.playwright-mcp/
 
 # Python
 .venv/
@@ -33,3 +42,5 @@ var/
 .idea/
 .vscode/
 *.swp
+node_modules */
+**/node_modules */

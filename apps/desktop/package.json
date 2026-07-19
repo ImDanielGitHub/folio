@@ -1,0 +1,29 @@
+{
+  "name": "@folio/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Folio local-first finance workspace desktop client",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "dist-electron/main/main.js",
+  "scripts": {
+    "dev:browser": "vite",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "dev:electron": "pnpm build:electron && electron dist-electron/main/main.js --renderer-url=http://127.0.0.1:4173",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.electron.json --noEmit",
+    "build": "pnpm build:electron && vite build"
+  },
+  "dependencies": {
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.1",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.3",
+    "electron": "43.1.1",
+    "typescript": "7.0.2",
+    "vite": "8.1.5"
+  }
+}

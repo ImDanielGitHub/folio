@@ -48,7 +48,7 @@ MIGRATIONS: tuple[Migration, ...] = (
             source_item_id TEXT PRIMARY KEY,
             workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id),
             source_type TEXT NOT NULL
-                CHECK (source_type IN ('csv', 'telegram_fixture', 'owner_claim')),
+                CHECK (source_type IN ('csv', 'telegram_fixture', 'owner_claim', 'akahu_fixture')),
             label TEXT NOT NULL,
             digest TEXT NOT NULL CHECK (length(digest) = 64),
             mapping_version TEXT NOT NULL,
@@ -414,6 +414,70 @@ MIGRATIONS: tuple[Migration, ...] = (
             ON finance_events(workspace_id, occurred_at, event_id);
         CREATE INDEX outbox_pending
             ON outbox_messages(workspace_id, status, created_at);
+        """,
+    ),
+    Migration(
+        version=3,
+        name="agent_receipts",
+        sql="""
+        CREATE TABLE work_receipts (
+            receipt_id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id),
+            run_id TEXT NOT NULL,
+            receipt_json TEXT NOT NULL,
+            content_hash TEXT NOT NULL CHECK (length(content_hash) = 64),
+            created_at TEXT NOT NULL
+        );
+
+        CREATE INDEX work_receipts_run ON work_receipts(run_id, created_at);
+        """,
+    ),
+    Migration(
+        version=4,
+        name="dialogue_frame_revision",
+        sql="""
+        ALTER TABLE dialogue_frames
+            ADD COLUMN revision INTEGER NOT NULL DEFAULT 1 CHECK (revision >= 1);
+        """,
+    ),
+    Migration(
+        version=5,
+        name="akahu_fixture_source_type",
+        sql="""
+        PRAGMA foreign_keys = OFF;
+
+        DROP TABLE IF EXISTS source_items_v5;
+
+        CREATE TABLE source_items_v5 (
+            source_item_id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id),
+            source_type TEXT NOT NULL
+                CHECK (source_type IN ('csv', 'telegram_fixture', 'owner_claim', 'akahu_fixture')),
+            label TEXT NOT NULL,
+            digest TEXT NOT NULL CHECK (length(digest) = 64),
+            mapping_version TEXT NOT NULL,
+            received_at TEXT NOT NULL,
+            status TEXT NOT NULL CHECK (status IN ('pending', 'processed', 'failed')),
+            row_count INTEGER NOT NULL CHECK (row_count >= 0),
+            UNIQUE (workspace_id, digest, mapping_version)
+        );
+
+        INSERT INTO source_items_v5 (
+            source_item_id, workspace_id, source_type, label, digest,
+            mapping_version, received_at, status, row_count
+        )
+        SELECT
+            source_item_id, workspace_id, source_type, label, digest,
+            mapping_version, received_at, status, row_count
+        FROM source_items;
+
+        DROP TABLE source_items;
+        ALTER TABLE source_items_v5 RENAME TO source_items;
+
+        CREATE INDEX IF NOT EXISTS source_items_pending
+            ON source_items(workspace_id, status, received_at);
+
+        PRAGMA foreign_keys = ON;
         """,
     ),
 )

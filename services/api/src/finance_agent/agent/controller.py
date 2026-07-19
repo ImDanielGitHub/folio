@@ -95,6 +95,7 @@ class FinanceAgentController:
         trace: list[ControllerState] = [ControllerState.LOAD_CONTEXT]
         context = await self.finance_core.load_context(request.workspace_id, request.thread_id)
         frame = self.conversations.get_frame(request.thread_id)
+        frame_for_context = frame
         owner_turn = TranscriptTurn(
             turn_id=request.turn_id,
             role="owner",
@@ -113,11 +114,11 @@ class FinanceAgentController:
                 stopped=False,
                 updated_at=owner_turn.occurred_at,
             )
-        self.conversations.save_frame(frame)
         recent = self.conversations.recent_turns(request.thread_id, 4)
         context_packet = self.context_assembler.assemble(
-            frame, recent, dict(context.projection)
+            frame_for_context, recent, dict(context.projection)
         )
+        self.conversations.save_frame(frame)
 
         trace.append(ControllerState.COMPILE_PLAN)
         outcome = await self.harness.compile_plan(
@@ -145,6 +146,16 @@ class FinanceAgentController:
             frame = self.inquiry.ask(frame, question)
             self.conversations.save_frame(frame)
             narrative = f"{self.inquiry.acknowledge(request.content)} {prompt}"
+            self.conversations.append_turn(
+                request.thread_id,
+                TranscriptTurn(
+                    turn_id=receipt_id("turn", request.run_id, "question"),
+                    role="agent",
+                    content=narrative,
+                    occurred_at=datetime.now(UTC),
+                    mode=request.mode.value,
+                ),
+            )
             trace.extend([ControllerState.EXPLAIN, ControllerState.COMMIT_RECEIPT])
             work_receipt = self._work_receipt(request.run_id, (), trace, status="question")
             await self.receipt_sink.commit(work_receipt)

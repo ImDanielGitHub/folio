@@ -65,11 +65,12 @@ No P0 route may introduce a conventional dashboard, generic chat home, queue-man
 - Local mode through LM Studio; Cloud mode through OpenAI; Hybrid mode that computes locally and sends only a typed projection allowed by policy.
 - A generated HTML preview and PDF owner pack from the same deterministic DTO.
 - Telegram fixture ingestion for an expense message/photo reference and a reserve-risk outgoing brief. Real Bot API polling/sending is optional behind configuration.
+- Akahu read-only bank connection as a first-class onboarding path: **fixture sync is mandatory for the golden demo**; live Akahu API calls are optional behind `FINANCE_AKAHU_ENABLED` and never required for CI or offline proof.
 - Source-linked answers, activity receipts, data-through timestamp, forecast assumptions and uncertainty language.
 
 ### Explicitly excluded
 
-- Live bank connections, Open Banking/CDR, Akahu/Plaid onboarding or production webhooks.
+- Production Open Banking/CDR webhooks, multi-bank OAuth marketplace UX, or write/payment scopes on Akahu (read-only posture only).
 - Payments, bill execution, card controls, journal posting to an external ledger, tax filing or financial advice.
 - Receipt OCR as a gating dependency. P0 stores the image and parses an explicit caption/fixture; Docling/OCR is a P1 adapter.
 - A general double-entry ledger. P0 is a source-linked bookkeeping-preparation system. Beancount/accounting-system export is P1.

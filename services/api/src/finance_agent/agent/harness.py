@@ -24,8 +24,10 @@ from finance_agent.models.base import (
     ModelUnavailable,
 )
 from finance_agent.models.projection import (
+    MAX_OWNER_CLAIM_STATEMENT_CHARACTERS,
     EgressReceipt,
     ModelReceipt,
+    ProjectionEnvelope,
     ProjectionPolicy,
     make_egress_receipt,
     receipt_id,
@@ -89,6 +91,7 @@ class ModelHarness:
     @staticmethod
     def _projection_source(request: HarnessRequest) -> dict[str, object]:
         projection = dict(request.finance_context.projection)
+        bounded_owner_content = request.content[:MAX_OWNER_CLAIM_STATEMENT_CHARACTERS]
         return {
             "aggregate_amounts": projection.get("aggregate_amounts", {}),
             "finding_labels": projection.get("finding_labels", []),
@@ -96,7 +99,7 @@ class ModelHarness:
             "owner_claims": [
                 {
                     "sourceTurnId": request.turn_id,
-                    "statement": request.content,
+                    "statement": bounded_owner_content,
                     "basis": "explicit",
                 }
             ],
@@ -110,27 +113,16 @@ class ModelHarness:
         card = await adapter.capability()
         source = self._projection_source(request)
         egress_receipts: list[EgressReceipt] = []
+        egress_envelope: ProjectionEnvelope | None = None
         if adapter.provider == "openai":
-            envelope = self.projection_policy.compile(
+            egress_envelope = self.projection_policy.compile(
                 source, mode=request.mode, purpose=ModelPurpose.COMPILE_PLAN
             )
             model_context = json.dumps(
-                envelope.payload, ensure_ascii=False, separators=(",", ":")
+                egress_envelope.payload, ensure_ascii=False, separators=(",", ":")
             )
             if not card.model:
                 model_context = "{}"
-            else:
-                egress_receipts.append(
-                    make_egress_receipt(
-                        envelope,
-                        workspace_id=request.workspace_id,
-                        thread_id=request.thread_id,
-                        run_id=request.run_id,
-                        mode=request.mode,
-                        model=card.model,
-                        purpose=ModelPurpose.COMPILE_PLAN,
-                    )
-                )
         else:
             model_context = request.context_packet
 
@@ -142,7 +134,7 @@ class ModelHarness:
                 "typedContext": json.loads(model_context),
                 "ownerTurnUntrusted": {
                     "sourceTurnId": request.turn_id,
-                    "content": request.content,
+                    "content": request.content[:MAX_OWNER_CLAIM_STATEMENT_CHARACTERS],
                 },
             },
             ensure_ascii=False,
@@ -155,6 +147,7 @@ class ModelHarness:
         output_model = card.model or "unavailable"
         model_status = "skipped"
         plan: FinancePlan | None = None
+        egress_attempted = False
         if card.status.value == "ready":
             for attempt in range(2):
                 if attempt:
@@ -167,6 +160,7 @@ class ModelHarness:
                 else:
                     current_prompt = prompt
                 try:
+                    egress_attempted = egress_envelope is not None
                     response = await adapter.complete(
                         ModelRequest(
                             system=_PLAN_SYSTEM,
@@ -190,6 +184,19 @@ class ModelHarness:
                 except (ModelUnavailable, PlanParseError, ValueError) as exc:
                     last_error = str(exc)
                     model_status = "failed_closed"
+
+        if egress_attempted and egress_envelope is not None and card.model:
+            egress_receipts.append(
+                make_egress_receipt(
+                    egress_envelope,
+                    workspace_id=request.workspace_id,
+                    thread_id=request.thread_id,
+                    run_id=request.run_id,
+                    mode=request.mode,
+                    model=card.model,
+                    purpose=ModelPurpose.COMPILE_PLAN,
+                )
+            )
 
         now = datetime.now(UTC)
         receipt = ModelReceipt(
@@ -254,29 +261,24 @@ class ModelHarness:
         adapter = self.router.adapter_for(mode, purpose)
         card = await adapter.capability()
         egress: EgressReceipt | None = None
+        egress_envelope: ProjectionEnvelope | None = None
         if adapter.provider == "openai":
             try:
-                envelope = self.projection_policy.compile(source, mode=mode, purpose=purpose)
+                egress_envelope = self.projection_policy.compile(
+                    source, mode=mode, purpose=purpose
+                )
             except ValueError:
                 return NarrativeOutcome(fallback_text, None, None)
-            prompt_payload = envelope.payload
-            if card.model:
-                egress = make_egress_receipt(
-                    envelope,
-                    workspace_id=workspace_id,
-                    thread_id=thread_id,
-                    run_id=run_id,
-                    mode=mode,
-                    model=card.model,
-                    purpose=purpose,
-                )
+            prompt_payload = egress_envelope.payload
         else:
             prompt_payload = source
         prompt = json.dumps(prompt_payload, ensure_ascii=False, separators=(",", ":"))
         if card.status.value != "ready":
-            return NarrativeOutcome(fallback_text, None, egress)
+            return NarrativeOutcome(fallback_text, None, None)
         now = datetime.now(UTC)
+        egress_attempted = False
         try:
+            egress_attempted = egress_envelope is not None
             response = await adapter.complete(
                 ModelRequest(
                     system=_NARRATIVE_SYSTEM,
@@ -298,6 +300,16 @@ class ModelHarness:
             output_length = 0
             latency = 0
             model = card.model or "unavailable"
+        if egress_attempted and egress_envelope is not None and card.model:
+            egress = make_egress_receipt(
+                egress_envelope,
+                workspace_id=workspace_id,
+                thread_id=thread_id,
+                run_id=run_id,
+                mode=mode,
+                model=card.model,
+                purpose=purpose,
+            )
         receipt = ModelReceipt(
             receiptId=receipt_id("modelrcpt", run_id, "explain", now.isoformat()),
             workspaceId=workspace_id,
