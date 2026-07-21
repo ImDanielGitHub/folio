@@ -621,7 +621,7 @@ class FinanceCoreAdapter:
                     "sources": [
                         {
                             "sourceItemId": "src_koru_bank_csv_20260717",
-                            "label": "Koru Studio bank export — row 7",
+                            "label": "Folio demo bank export — row 7",
                             "sourceType": "csv",
                             "receivedAt": "2026-07-17T07:59:00+12:00",
                             "status": "processed",

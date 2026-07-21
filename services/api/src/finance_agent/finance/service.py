@@ -100,7 +100,7 @@ class FinanceEngine:
                     workspace_id, name, entity_type, currency, timezone,
                     protected_reserve_minor, data_through, thread_id, model_mode,
                     created_at, updated_at
-                ) VALUES (?, 'Koru Studio', 'nz_sole_trader', 'NZD',
+                ) VALUES (?, 'Folio Demo Business', 'nz_sole_trader', 'NZD',
                     'Pacific/Auckland', 200000, ?, ?, 'local', ?, ?)
                 """,
                 (WORKSPACE_ID, DATA_THROUGH, THREAD_ID, DEMO_CREATED_AT, DEMO_CREATED_AT),
@@ -108,7 +108,7 @@ class FinanceEngine:
             connection.execute(
                 """
                 INSERT INTO accounts(account_id, workspace_id, name, currency, created_at)
-                VALUES (?, ?, 'Koru Studio business account', 'NZD', ?)
+                VALUES (?, ?, 'Folio demo business account', 'NZD', ?)
                 """,
                 (ACCOUNT_ID, WORKSPACE_ID, DEMO_CREATED_AT),
             )
@@ -125,7 +125,7 @@ class FinanceEngine:
             csv_path,
             workspace_id=WORKSPACE_ID,
             source_item_id="src_koru_bank_csv_20260717",
-            label="Koru Studio bank export — July 2026",
+            label="Folio demo bank export — July 2026",
             mapping_version="koru_bank_csv@1",
             received_at=CSV_RECEIVED_AT,
         )
@@ -960,7 +960,7 @@ class FinanceEngine:
         return OwnerPackDTO(
             pack_version="owner.pack@1",
             workspace_id=WORKSPACE_ID,
-            workspace_name="Koru Studio",
+            workspace_name="Folio Demo Business",
             generated_at=generated_at,
             data_through=DATA_THROUGH,
             currency="NZD",
@@ -1018,7 +1018,7 @@ class FinanceEngine:
                     artifact_id, revision, workspace_id, kind, title, media_type,
                     content, content_hash, dto_json, dto_hash, evidence_ids_json,
                     state_revision, generated_at, is_current
-                ) VALUES (?, ?, ?, ?, 'Koru Studio owner pack', ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                ) VALUES (?, ?, ?, ?, 'Folio demo owner pack', ?, ?, ?, ?, ?, ?, ?, ?, 1)
                 """,
                 (
                     artifact_id,
@@ -1039,7 +1039,7 @@ class FinanceEngine:
                 {
                     "artifactId": artifact_id,
                     "kind": kind,
-                    "title": "Koru Studio owner pack",
+                    "title": "Folio demo owner pack",
                     "contentHash": content_hash,
                     "generatedAt": generated_at,
                     "evidenceIds": evidence_ids,

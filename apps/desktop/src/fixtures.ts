@@ -196,7 +196,7 @@ export const transactionDetailSurface: FinanceSurfaceSpec = {
       sources: [
         {
           sourceItemId: "src_koru_bank_csv_20260717",
-          label: "Koru Studio bank export — row 7",
+          label: "Folio demo bank export — row 7",
           sourceType: "csv",
           receivedAt: "2026-07-17T07:59:00+12:00",
           status: "processed",
@@ -313,7 +313,7 @@ export const ownerPackSurface: FinanceSurfaceSpec = {
     {
       blockId: "block_owner_pack_intro",
       type: "narrative",
-      text: "A concise handoff for Koru Studio: cleared cash, prepared income and expenses, unresolved evidence, cash assumptions, and the next owner action. This is bookkeeping preparation, not a tax filing or financial advice.",
+      text: "A concise handoff for the demo business: cleared cash, prepared income and expenses, unresolved evidence, cash assumptions, and the next owner action. This is bookkeeping preparation, not a tax filing or financial advice.",
       tone: "neutral",
     },
     {
@@ -321,7 +321,7 @@ export const ownerPackSurface: FinanceSurfaceSpec = {
       type: "artifact_preview",
       artifactId: "artifact_koru_owner_pack_html",
       kind: "html",
-      title: "Koru Studio owner pack — interactive preview",
+      title: "Folio demo owner pack — interactive preview",
       generatedAt: "2026-07-17T08:00:03+12:00",
       contentHash: "6f82cd96595aee376b11efb62c3cc52d8e8724b9647e4e4fcf894f1d55770651",
       downloadAvailable: true,
@@ -332,7 +332,7 @@ export const ownerPackSurface: FinanceSurfaceSpec = {
       type: "artifact_preview",
       artifactId: "artifact_koru_owner_pack_pdf",
       kind: "pdf",
-      title: "Koru Studio owner pack — PDF",
+      title: "Folio demo owner pack — PDF",
       generatedAt: "2026-07-17T08:00:03+12:00",
       contentHash: "dc0f89a8fcbdf717462730ac5fc3084ac47f35f8f5732921223cdef0647bc865",
       downloadAvailable: true,
@@ -442,7 +442,7 @@ export const initialSources: SourceItem[] = [
   {
     sourceItemId: "src_koru_bank_csv_20260717",
     sourceType: "csv",
-    label: "Koru Studio bank export — July 2026",
+    label: "Folio demo bank export — July 2026",
     digest: "c2c07beeca632f4e09700837cc4b199653ce9b68f65b804b7c30e9838ef94eac",
     receivedAt: "2026-07-17T07:59:00+12:00",
     status: "processed",
@@ -477,7 +477,7 @@ export const workspaceFixture: WorkspaceSnapshot = {
   snapshotId: "snap_koru_after_close",
   workspace: {
     workspaceId: "ws_koru_studio",
-    name: "Koru Studio",
+    name: "Demo business",
     entityType: "nz_sole_trader",
     currency: "NZD",
     timezone: "Pacific/Auckland",
@@ -489,7 +489,7 @@ export const workspaceFixture: WorkspaceSnapshot = {
       {
         turnId: "turn_koru_morning_close",
         role: "agent",
-        content: "I’ve built the current picture of Koru Studio. Cash is healthy today, but one likely duplicate is held out, one expense still needs context, and the planned laptop takes cash NZD 99.23 below your protected reserve.",
+        content: "I’ve built the current picture of your demo business. Cash is healthy today, but one likely duplicate is held out, one expense still needs context, and the planned laptop takes cash NZD 99.23 below your protected reserve.",
         occurredAt: "2026-07-17T08:00:04+12:00",
         status: "complete",
         evidenceIds: [
@@ -567,7 +567,7 @@ export const workspaceFixture: WorkspaceSnapshot = {
     {
       artifactId: "artifact_koru_owner_pack_html",
       kind: "owner_pack_html",
-      title: "Koru Studio owner pack",
+      title: "Folio demo owner pack",
       contentHash: "6f82cd96595aee376b11efb62c3cc52d8e8724b9647e4e4fcf894f1d55770651",
       generatedAt: "2026-07-17T08:00:03+12:00",
       evidenceIds: ["evd_koru_bank_csv", "evd_koru_forecast_30d"],
@@ -575,7 +575,7 @@ export const workspaceFixture: WorkspaceSnapshot = {
     {
       artifactId: "artifact_koru_owner_pack_pdf",
       kind: "owner_pack_pdf",
-      title: "Koru Studio owner pack",
+      title: "Folio demo owner pack",
       contentHash: "dc0f89a8fcbdf717462730ac5fc3084ac47f35f8f5732921223cdef0647bc865",
       generatedAt: "2026-07-17T08:00:03+12:00",
       evidenceIds: ["evd_koru_bank_csv", "evd_koru_forecast_30d"],

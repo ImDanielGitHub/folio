@@ -101,7 +101,7 @@ function modelModeBadge(mode: ModelMode, backend: BackendHealth): string {
 const investigateStages = [
   { title: "Inspecting committed facts", detail: "Reading the local ledger and linked evidence" },
   { title: "Checking source coverage", detail: "Matching bank rows, claims and open findings" },
-  { title: "Drafting with the local model", detail: "LM Studio is generating — amounts stay deterministic" },
+  { title: "Drafting the answer", detail: "LM Studio is putting the checked figures into plain language" },
   { title: "Verifying before reply", detail: "Finance numbers stay on this Mac; only the wording is drafted" },
 ] as const;
 
@@ -115,14 +115,14 @@ const liveSurfacePrompts: Record<SurfaceType, string> = {
 };
 
 function modeSelectionMessage(mode: ModelMode, backend: BackendHealth): string {
-  if (backend.mode !== "live") return `${modelLabel(mode)} preference selected for the sealed demo. No external model call is made.`;
+  if (backend.mode !== "live") return `${modelLabel(mode)} preference selected for the sample business. No external model call is made.`;
   if (mode === "local") {
     return backend.lmStudioReady
       ? "Local mode selected. LM Studio is ready and finance remains local."
-      : `Local mode selected, but LM Studio is ${backend.lmStudioStatus}. Folio will use its deterministic local fallback.`;
+      : `Local mode selected, but LM Studio is ${backend.lmStudioStatus}. Folio can still complete the supported finance tasks on this computer.`;
   }
   if (backend.cloudReady) return `${modelLabel(mode)} mode selected. OpenAI is configured; finance computation remains local.`;
-  return `${modelLabel(mode)} mode selected, but OpenAI is unavailable. Folio will use its deterministic local fallback and make no external call.`;
+  return `${modelLabel(mode)} mode selected, but OpenAI is unavailable. Folio can still complete the supported finance tasks locally and will not make an external call.`;
 }
 
 type ToastState = {
@@ -259,7 +259,7 @@ export function App() {
       setBackend({
         mode: "fixture",
         label: "Demo data",
-        detail: "The sealed Koru Studio fixture is active.",
+        detail: "The sample Folio business is open.",
         apiUrl: "http://127.0.0.1:8787",
         lmStudioReady: false,
         lmStudioStatus: "not checked",
@@ -267,10 +267,10 @@ export function App() {
         cloudCredentialState: "absent",
         akahuReady: false,
         akahuStatus: "unconfigured",
-        akahuDetail: "The sealed demo makes no Akahu request.",
+        akahuDetail: "The sample business makes no Akahu request.",
         plaidReady: false,
         plaidStatus: "unconfigured",
-        plaidDetail: "The sealed demo makes no Plaid request.",
+        plaidDetail: "The sample business makes no Plaid request.",
       });
       return () => { active = false; };
     }
@@ -368,11 +368,11 @@ export function App() {
           : sourceChoice === "akahu"
             ? backend.akahuReady
               ? "Akahu could not be read. Folio preserved the existing workspace; check the process credentials and connection, then try again."
-              : "The sealed Akahu feed could not be committed. No live bank request was made and the existing workspace was preserved."
+              : "The sample Akahu import did not finish. No bank was contacted and the existing workspace was preserved."
             : sourceChoice === "plaid"
               ? backend.plaidReady
                 ? "Plaid could not be read. Folio preserved the existing workspace; check the process credentials and connection, then try again."
-                : "The sealed Plaid feed could not be committed. No live bank request was made and the existing workspace was preserved."
+                : "The sample Plaid import did not finish. No bank was contacted and the existing workspace was preserved."
               : "The local service could not open this workspace. Keep this screen open and try again.");
       }
       try {
@@ -386,19 +386,19 @@ export function App() {
         : sourceChoice === "akahu"
           ? backend.akahuReady
             ? "Akahu settled transactions were synchronised read-only and Folio refreshed its current picture."
-            : "The sealed Akahu feed was processed locally. No live sync was attempted."
+            : "The sample Akahu transactions were imported locally. No bank was contacted."
           : sourceChoice === "plaid"
             ? backend.plaidReady
               ? "Plaid sandbox transactions were synchronised read-only and Folio refreshed its current picture."
-              : "The sealed Plaid feed was processed locally. No live sync was attempted."
-            : "Koru Studio is ready. Folio opened the most useful next question.");
+              : "The sample Plaid transactions were imported locally. No bank was contacted."
+            : "Your demo business is ready. Folio opened the most useful next question.");
       return;
     }
     if (backend.mode !== "fixture") {
       throw new Error("Folio could not verify a ready local workspace. Nothing was saved or substituted; keep this setup open and try again when the local service is available.");
     }
     if (sourceChoice !== "demo") {
-      throw new Error("Start the local Folio service before importing a statement or connector fixture, or choose the sealed Koru Studio demo.");
+      throw new Error("Start the local Folio service before importing a statement or connector sample, or open the Folio demo.");
     }
     try {
       localStorage.setItem("folio:onboarded", "yes");
@@ -406,7 +406,7 @@ export function App() {
       // Fixture mode remains usable for this session even without browser storage.
     }
     setShowOnboarding(false);
-    showToast("Koru Studio is ready in sealed demo mode. No external model call was made.");
+    showToast("The Folio sample business is ready. No external model call was made.");
   };
 
   const openSurface = useCallback((next: FinanceSurfaceSpec) => {
@@ -807,10 +807,10 @@ export function App() {
         setCorrectionActive(false);
         setRunning(false);
         setDrawer(null);
-        showToast("Koru Studio reset and rebuilt through the local service.");
+        showToast("The Folio demo was reset and rebuilt through the local service.");
         return;
       } catch {
-        markDegraded("Resetting Koru Studio");
+        markDegraded("Resetting the Folio demo");
         showToast("Reset did not finish. The current committed workspace was preserved.");
         return;
       }
@@ -828,12 +828,12 @@ export function App() {
     setCorrectionActive(false);
     setRunning(false);
     setDrawer(null);
-    showToast("Koru Studio reset to the sealed demo state.");
+    showToast("Folio reset the sample business.");
   }, [applySnapshot, backend.mode, markDegraded, showToast]);
 
   const openGeneratedArtifact = useCallback(async (artifactId: string) => {
     if (backend.mode === "fixture") {
-      showToast("Owner pack preview is running from the sealed demo fixture.");
+      showToast("The owner pack preview uses the sample business.");
       return;
     }
     if (backend.mode !== "live") {
@@ -963,8 +963,8 @@ export function App() {
         <section id="conversation-panel" role={canvasOpen ? "tabpanel" : undefined} aria-labelledby={canvasOpen ? "conversation-tab" : undefined} className={`thread-pane ${mobilePane === "thread" ? "is-mobile-active" : ""}`}>
           <header className="thread-header">
             <div className="workspace-identity">
-              <strong>Koru Studio</strong>
-              <span>Your business</span>
+              <strong>Folio</strong>
+              <span>Your finance workspace</span>
             </div>
             <div className="thread-header-actions">
               <button className="privacy-chip" title={backend.detail} onClick={() => setDrawer("connections")}>
@@ -1039,7 +1039,7 @@ export function App() {
             <div className="conversation-column">
               {!running ? (
                 <div className="suggestion-row">
-                  <button onClick={() => setComposer("What needs my attention today, and what do you still need to know about Koru Studio?")}>What needs attention?</button>
+                  <button onClick={() => setComposer("What needs my attention today, and what do you still need to know about my business?")}>What needs attention?</button>
                   <button onClick={() => setComposer("The MITRE 10 purchase was materials for a client fit-out. Treat similar purchases under $500 the same way.")}>Explain MITRE 10</button>
                   <button onClick={() => setComposer("Show me what happens if I defer the laptop purchase.")}>Test laptop timing</button>
                 </div>
@@ -1062,7 +1062,7 @@ export function App() {
                 <div className="composer-footer">
                   <span><PrivacyIcon size={13} /> {running
                     ? (modelMode === "local" && backend.lmStudioReady
-                      ? "Local model drafting — finance stays deterministic"
+                      ? "LM Studio is drafting from checked figures"
                       : "Working from committed facts")
                     : modelMode === "local"
                       ? (backend.lmStudioReady ? "Private on this device · LM Studio ready" : "Private on this device · local fallback")

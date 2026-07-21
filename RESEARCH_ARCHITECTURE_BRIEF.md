@@ -34,7 +34,7 @@ This is the strongest working-demo wedge because it proves proactivity, continui
 | Mobile doorway | Telegram fixture path mandatory; live test bot optional and isolated |
 | Documents | Deterministic owner-pack DTO → HTML preview + ReportLab PDF |
 | P0 accounting scope | Bookkeeping preparation and evidence, not a general double-entry ledger or tax system |
-| Open-source posture | Apache-2.0 is the provisional recommendation for original code; preserve MIT notices for adapted Hermes portions; do not publish until ownership/licence confirmation replaces the current `UNLICENSED` state |
+| Open-source posture | Original Folio code is licensed under Apache-2.0; preserve applicable third-party notices and keep provider credentials and service terms outside the code licence |
 
 The implementation contract, ownership and golden demo are frozen in [`BUILD_CONTRACT.md`](./BUILD_CONTRACT.md). The exact Refero decision is in [`REFERENCE_UI_DECISION.md`](./REFERENCE_UI_DECISION.md). Exact source adaptation boundaries are in [`SOURCE_REUSE_MAP.md`](./SOURCE_REUSE_MAP.md).
 
@@ -453,7 +453,7 @@ Current non-blocking unknowns for builders:
 - live Telegram test-bot availability;
 - GPT-5.6 account/model identifier available at demo time.
 
-One release blocker is already explicit in the concurrent bootstrap: the intended Apache-2.0 licence is provisional and the package is still `UNLICENSED`. This does not block local implementation, but ownership/licence confirmation is required before calling the repository open source or publishing it.
+The repository now carries the complete Apache License 2.0 text and matching SPDX package metadata. Applicable third-party notices and provider terms must still be preserved independently of Folio's code licence.
 
 None blocks implementing the offline deterministic spine. Cloud and live Telegram must degrade honestly rather than becoming demo prerequisites.
 

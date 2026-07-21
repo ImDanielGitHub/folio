@@ -90,7 +90,7 @@ export async function probeBackend(): Promise<BackendHealth> {
       mode: navigator.onLine ? "fixture" : "offline",
       label: navigator.onLine ? "Demo data" : "Offline demo",
       detail: navigator.onLine
-        ? "The local finance service is not running, so the sealed Koru Studio fixture is active."
+        ? "The local finance service is not running, so Folio has opened the sample business."
         : "The app is offline. Existing local data remains available.",
       apiUrl: LOOPBACK_API_URL,
       lmStudioReady: false,

@@ -227,7 +227,7 @@ def owner_pack_surface(*, artifacts: Sequence[dict[str, Any]], data_through: str
         "specVersion": "FinanceSurfaceSpec@1",
         "surfaceId": "surface_koru_owner_pack",
         "surfaceType": "owner_pack",
-        "title": "Koru Studio owner pack",
+        "title": "Folio demo owner pack",
         "subtitle": "Source-linked preparatory working material",
         "freshness": freshness(data_through),
         "blocks": blocks,

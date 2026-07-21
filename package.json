@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Folio local-first finance workspace",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "packageManager": "pnpm@10.33.0",
   "engines": {
     "node": ">=22"

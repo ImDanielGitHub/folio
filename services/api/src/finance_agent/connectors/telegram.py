@@ -276,7 +276,7 @@ def reserve_risk_outbox(
         destination_id=destination_id,
         kind="reserve_risk_brief",
         text=(
-            f"Koru Studio cash note: the 30-day plan moves {shortfall_label} below the "
+            f"Folio demo cash note: the 30-day plan moves {shortfall_label} below the "
             "protected reserve. Open the local workspace to review assumptions."
         ),
         correlation_id=correlation_id,

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Folio demo launcher — idempotent start for Build Week recording.
 # Usage:
-#   ./run                 Start API + web UI, wait for health, print URLs
-#   ./run --reset         Also reset Koru Studio to a clean seed
+#   ./run                 Start API + web UI and open the Folio desktop app
+#   ./run --reset         Also reset the example business to a clean seed
 #   ./run --with-lms      Also start LM Studio server and load the local model
 #   ./run --electron      Also launch the Electron shell (after web is healthy)
 #   ./run --stop          Stop Folio API/UI processes started by this script
@@ -26,7 +26,7 @@ UI_PID_FILE="${PID_DIR}/ui.pid"
 LMS_MODEL_DEFAULT="qwen3.5-9b"
 DO_RESET=0
 DO_LMS=0
-DO_ELECTRON=0
+DO_ELECTRON=1
 DO_STOP=0
 
 for arg in "$@"; do
@@ -34,6 +34,7 @@ for arg in "$@"; do
     --reset) DO_RESET=1 ;;
     --with-lms) DO_LMS=1 ;;
     --electron) DO_ELECTRON=1 ;;
+    --no-electron) DO_ELECTRON=0 ;;
     --stop) DO_STOP=1 ;;
     -h|--help)
       sed -n '2,12p' "$0"
@@ -188,13 +189,13 @@ wait_for "API" api_healthy 45
 wait_for "UI" ui_healthy 60
 
 if [[ "$DO_RESET" -eq 1 ]]; then
-  log "Resetting Koru Studio demo seed…"
+  log "Resetting the example business…"
   if [[ -x services/api/.venv/bin/python ]]; then
     services/api/.venv/bin/python scripts/demo_control.py reset >/dev/null
   else
     uv run --project services/api python scripts/demo_control.py reset >/dev/null
   fi
-  log "Koru seed ready."
+  log "Example business ready."
 fi
 
 HEALTH="$(curl -fsS --max-time 3 "${API_URL}/health" || true)"
@@ -204,9 +205,9 @@ log ""
 log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 log " Folio is ready for demo recording"
 log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-log " Open (onboarding → Koru):  ${UI_URL}/?onboarding=1"
+log " Open onboarding:            ${UI_URL}/?onboarding=1"
 log " Open (workspace):          ${UI_URL}/"
-log " Open (sealed UI fixture):  ${UI_URL}/?demo=1"
+log " Open (example UI data):     ${UI_URL}/?demo=1"
 log " API health:                ${API_URL}/health"
 log " Logs:                      ${LOG_DIR}/"
 if [[ -n "$HEALTH" ]]; then

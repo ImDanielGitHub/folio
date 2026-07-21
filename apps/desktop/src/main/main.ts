@@ -17,8 +17,9 @@ async function createWindow(): Promise<void> {
     height: 900,
     minWidth: 860,
     minHeight: 640,
-    backgroundColor: "#f4f5f1",
-    title: "Folio — Koru Studio",
+    backgroundColor: "#0d0f0e",
+    title: "Folio",
+    autoHideMenuBar: true,
     show: false,
     webPreferences: {
       contextIsolation: true,
@@ -28,7 +29,14 @@ async function createWindow(): Promise<void> {
     },
   });
 
-  window.once("ready-to-show", () => window.show());
+  window.once("ready-to-show", () => {
+    window.show();
+    if (process.platform === "darwin") {
+      window.setSimpleFullScreen(true);
+    } else {
+      window.setFullScreen(true);
+    }
+  });
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith(`${apiBase}/v1/artifacts/`)) {
       void shell.openExternal(url);

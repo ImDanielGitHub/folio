@@ -84,7 +84,7 @@ def test_discovery_does_not_repeat_prompt_already_in_agent_turn() -> None:
     from finance_agent.agent.business_discovery import next_discovery_prompt
 
     prior = (
-        "Here’s what I found. Who usually makes the day-to-day spending calls for Koru Studio?"
+        "Here’s what I found. Who usually makes the day-to-day spending calls for your business?"
     )
     gap = next_discovery_prompt(
         {"ownerStatementCount": 1, "entries": []},

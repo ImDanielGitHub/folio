@@ -6,7 +6,7 @@ This repository contains a working Build Week prototype. It is not a bank, accou
 
 ## The product loop
 
-The seeded Koru Studio demonstration shows one end-to-end workflow:
+The sample business demonstrates one end-to-end workflow:
 
 1. Folio ingests a synthetic bank CSV and runs an idempotent Daily Close.
 2. Deterministic services reconcile transactions, flag a likely duplicate, surface an unsupported expense and calculate a 30-day cash scenario.
@@ -81,16 +81,19 @@ uv sync --project services/api --frozen
 ### Run the live local application
 
 ```bash
-pnpm dev
+./run
 ```
 
-This starts the FastAPI service on `127.0.0.1:8787` and the Vite renderer on `127.0.0.1:4173`. Open the renderer in a browser, or run the Electron shell separately with:
+This starts the FastAPI service on `127.0.0.1:8787`, the Vite renderer on `127.0.0.1:4173`, and the Folio Electron app. Stop it with `Ctrl+C`.
+
+For separate development processes, run:
 
 ```bash
+pnpm dev
 pnpm dev:electron
 ```
 
-No account or external model is needed. Choose the Koru Studio synthetic demo during onboarding.
+No account or external model is needed for the example workspace. For the intended conversational experience, load a tool-capable model in LM Studio and enable its local server at `127.0.0.1:1234` before opening Folio.
 
 ### Open the sealed UI fixture
 
@@ -132,7 +135,7 @@ Model selection is in the quiet Privacy & Models drawer, not in the ordinary con
 
 ## Synthetic data
 
-All committed data under `fixtures/` is fictional. Koru Studio, its people, accounts, transactions, documents, dates and identifiers are demo material created for this project. Reset with:
+All committed data under `fixtures/` is fictional. The example business, its people, accounts, transactions, documents, dates and identifiers are demo material created for this project. Reset with:
 
 ```bash
 pnpm demo:reset
@@ -157,7 +160,7 @@ Codex with GPT-5.6 was used for research, architecture, implementation, test gen
 - The cash forecast is a deterministic scenario over known fixture commitments, not predictive certainty.
 - A local-model transport smoke is recorded; the four-case live model benchmark is optional and may not have been run on the current machine state.
 - No public deployment, packaged judge build, public video or final Devpost submission is created by this repository.
-- The intended Apache-2.0 licence remains provisional. Until Daniel confirms ownership and replaces `LICENSE` with an effective grant, do not describe or publish this repository as open source.
+- Folio is free and open-source software licensed under the Apache License 2.0. Provider credentials and third-party services remain subject to their own terms.
 
 ## Repository map
 
@@ -173,11 +176,11 @@ services/api/src/finance_agent/
   connectors/                 Akahu boundary and Telegram fixture adapter
   artifacts/                  owner-pack HTML/PDF generation
 contracts/                    JSON Schema contracts and examples
-fixtures/                     synthetic Koru Studio data and UI snapshots
+fixtures/                     fictional business data and UI snapshots
 evals/                        offline and optional live harness evaluations
 scripts/                      reset, contract and golden-flow commands
 ```
 
 ## Licence
 
-No effective open-source licence has been granted yet. See [LICENSE](LICENSE) for the provisional Apache-2.0 decision record.
+Folio is licensed under the [Apache License 2.0](LICENSE).

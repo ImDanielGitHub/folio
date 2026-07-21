@@ -58,24 +58,24 @@ const statusCopy: Record<SourceItem["status"], string> = {
 
 function sourceInterpretation(source: SourceItem): string {
   if (source.status === "failed") {
-    return "Folio could not use this source. No claim or ledger change should depend on it until it is processed successfully.";
+    return "Folio could not read this item, so it has not been used in any figures or changes.";
   }
   if (source.status === "pending") {
-    return "This source is retained locally but has not contributed to the workspace yet.";
+    return "This item is saved locally and is still waiting to be processed.";
   }
   if (source.sourceType === "csv") {
-    return `Folio recognised ${source.rowCount} ${source.rowCount === 1 ? "ledger row" : "ledger rows"}. Original values remain attached to the imported source so classifications can be traced and corrected.`;
+    return `Folio imported ${source.rowCount} ${source.rowCount === 1 ? "transaction" : "transactions"}. The original values remain available if you need to check or correct a category.`;
   }
   if (source.sourceType === "telegram_fixture") {
-    return "Folio treats the message as owner-supplied context, not independent proof. The linked transaction remains the financial source of truth.";
+    return "This is the owner's explanation of a purchase. The linked bank transaction still supplies the date and amount.";
   }
   if (source.sourceType === "akahu_fixture") {
-    return `Folio processed ${source.rowCount} synthetic provider rows through the same immutable source and evidence boundary used by a bank connector. The receipt records that no live Akahu sync was attempted.`;
+    return `Folio imported ${source.rowCount} fictional Akahu-shaped transactions. No bank was contacted.`;
   }
   if (source.sourceType === "plaid_fixture") {
-    return `Folio processed ${source.rowCount} synthetic Plaid-shaped rows through the same immutable source and evidence boundary used by a bank connector. The receipt records that no live Plaid sync was attempted.`;
+    return `Folio imported ${source.rowCount} fictional Plaid-shaped transactions. No bank was contacted.`;
   }
-  return "Folio keeps this as an owner-provided claim. It can explain a decision, but it cannot silently replace source evidence or create a ledger fact.";
+  return "Folio keeps this explanation beside the records it relates to. It does not change a bank amount.";
 }
 
 function sourcePreview(source: SourceItem) {
@@ -206,7 +206,7 @@ export function Drawer({
     ? "Language work stays on this computer. Folio does not send model data to a cloud provider in Local mode."
     : modelMode === "hybrid"
       ? "Finance calculations and source files stay local. Only the minimum typed context needed for an eligible language task may be sent when cloud access is configured."
-      : "Finance calculations and source files stay local. Eligible language tasks may use the configured cloud model with a bounded typed projection.";
+      : "Finance calculations and source files stay local. When cloud access is configured, Folio sends only the details needed to answer the question.";
 
   return (
     <>
@@ -320,7 +320,7 @@ export function Drawer({
                   <span className="telegram-orb"><TelegramIcon size={18} /></span>
                   <div>
                     <h3>Add the demo receipt message</h3>
-                    <p>See how owner context is linked without being treated as independent financial proof.</p>
+                    <p>Add the owner's explanation while the purchase is still easy to remember.</p>
                   </div>
                 </div>
                 <button className="button button-secondary" onClick={onImportTelegram} disabled={telegramImported}>
@@ -414,7 +414,7 @@ export function Drawer({
                 <div className="mode-stack" role="radiogroup" aria-label="Language model mode">
                   {([
                     ["local", "Local", "Private on this computer", "No cloud model data is sent."],
-                    ["hybrid", "Hybrid", "Local finance, optional cloud language", "Only bounded typed context is eligible."],
+                    ["hybrid", "Hybrid", "Local finance, optional cloud language", "Send only what the current question needs."],
                     ["cloud", "Cloud", "Cloud language when configured", "Sources and ledger history remain excluded."],
                   ] as const).map(([mode, label, subtitle, detail]) => {
                     const availability = mode === "local"
@@ -455,7 +455,7 @@ export function Drawer({
                 <div className="connection-list">
                   <article>
                     <span><PrivacyIcon size={17} /></span>
-                    <div><strong>Finance service</strong><p>Processes local data and deterministic calculations.</p></div>
+                    <div><strong>Finance service</strong><p>Imports records and calculates figures on this computer.</p></div>
                     <b className={`connection-state state-${backend.mode}`}>{backend.mode === "live" ? "Connected" : backend.mode === "fixture" ? "Sealed demo" : backend.mode === "checking" ? "Connecting" : backend.mode === "degraded" ? "Needs attention" : "Offline"}</b>
                   </article>
                   <article>
@@ -499,7 +499,7 @@ export function Drawer({
 
               <section className="drawer-section danger-zone">
                 <h3>Demo workspace</h3>
-                <p>Return Koru Studio to the original sealed source data and expected totals.</p>
+                <p>Return the sample business to its original transactions and totals.</p>
                 <button className="text-button" onClick={onReset}>Reset seeded workspace</button>
               </section>
             </>
@@ -509,7 +509,7 @@ export function Drawer({
         <footer className="drawer-footer">
           <span className={`runtime-dot runtime-${backend.mode}`} />
           <div>
-            <strong>{backend.mode === "live" ? "Local finance service connected" : backend.mode === "fixture" ? "Using the sealed demo workspace" : backend.mode === "checking" ? "Finding the local finance service" : backend.mode === "degraded" ? "Local service needs attention" : "Working offline"}</strong>
+            <strong>{backend.mode === "live" ? "Local finance service connected" : backend.mode === "fixture" ? "Using the sample business" : backend.mode === "checking" ? "Finding the local finance service" : backend.mode === "degraded" ? "Local service needs attention" : "Working offline"}</strong>
             <span>{backend.mode === "live" ? "Workspace data is available." : backend.mode === "fixture" ? "Fixture evidence is clearly labelled." : "The last committed view remains visible; failed work is not replaced with demo output."}</span>
           </div>
           {backend.mode !== "live" ? <WarningIcon size={16} /> : null}

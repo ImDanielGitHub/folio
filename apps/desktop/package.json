@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Folio local-first finance workspace desktop client",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "type": "module",
   "main": "dist-electron/main/main.js",
   "scripts": {

@@ -69,7 +69,7 @@ export function Onboarding({ backend, onComplete }: OnboardingProps) {
               <div className="onboarding-panel">
                 <p className="step-label">Start with the facts</p>
                 <h1 id="onboarding-title" ref={titleRef} tabIndex={-1}>What should I look at first?</h1>
-                <p className="panel-lede">Open the private Koru Studio example, or bring in a local bank export. Once it is ready, I’ll ask the single most useful question in the conversation.</p>
+                <p className="panel-lede">Open Folio with a private example business, or bring in a local bank export. Once it is ready, I’ll ask the single most useful question in the conversation.</p>
 
                 <div className="choice-grid onboarding-choice-list" role="group" aria-label="Starting finance source">
                   <button
@@ -79,7 +79,7 @@ export function Onboarding({ backend, onComplete }: OnboardingProps) {
                     onClick={() => setSourceChoice("demo")}
                   >
                     <span className="choice-icon"><SparkIcon /></span>
-                    <span><strong>Open Koru Studio</strong><small>Explore a sealed New Zealand business with synthetic records and source-linked findings.</small></span>
+                    <span><strong>Open Folio demo</strong><small>Explore a fictional New Zealand business with sample transactions and open questions.</small></span>
                     <i aria-hidden="true">{sourceChoice === "demo" ? <CheckIcon size={14} /> : null}</i>
                   </button>
 
@@ -95,7 +95,7 @@ export function Onboarding({ backend, onComplete }: OnboardingProps) {
                       <strong>{backend.akahuReady ? "Sync Akahu read-only" : "Preview an Akahu import"}</strong>
                       <small>{backend.akahuReady
                         ? "Bring settled New Zealand bank transactions into Folio through this computer."
-                        : "Process a sealed, read-only New Zealand bank feed through the real source and evidence pipeline."}</small>
+                        : "Try the Akahu import flow with six fictional New Zealand transactions."}</small>
                     </span>
                     <i aria-hidden="true">{sourceChoice === "akahu" ? <CheckIcon size={14} /> : null}</i>
                   </button>
@@ -112,7 +112,7 @@ export function Onboarding({ backend, onComplete }: OnboardingProps) {
                       <strong>{backend.plaidReady ? "Sync Plaid sandbox read-only" : "Preview a Plaid import"}</strong>
                       <small>{backend.plaidReady
                         ? "Bring settled US sandbox transactions into Folio through this computer."
-                        : "Process a sealed, read-only US bank feed shaped like Plaid through the real source and evidence pipeline."}</small>
+                        : "Try the Plaid import flow with six fictional US transactions."}</small>
                     </span>
                     <i aria-hidden="true">{sourceChoice === "plaid" ? <CheckIcon size={14} /> : null}</i>
                   </button>
@@ -148,7 +148,7 @@ export function Onboarding({ backend, onComplete }: OnboardingProps) {
                     <SourceIcon size={16} />
                     <p>{backend.akahuReady
                       ? <><strong>Akahu is configured.</strong> Folio will read accounts and settled transactions only. It cannot make payments or change your bank.</>
-                      : <><strong>Judge-safe connector proof.</strong> This uses six synthetic Akahu-shaped transactions, makes no bank request, and records that no live sync was attempted. Add a Personal App or accredited OAuth connection to use a real account.</>}</p>
+                      : <><strong>Preview with sample data.</strong> Folio will import six fictional Akahu-shaped transactions without contacting a bank. Add a Personal App or accredited OAuth connection to use your own account.</>}</p>
                   </div>
                 ) : null}
 
@@ -157,7 +157,7 @@ export function Onboarding({ backend, onComplete }: OnboardingProps) {
                     <SourceIcon size={16} />
                     <p>{backend.plaidReady
                       ? <><strong>Plaid sandbox is configured.</strong> Folio will create a Link token or sync settled sandbox transactions read-only. Access tokens are not stored.</>
-                      : <><strong>Default is the sealed fixture.</strong> This uses six synthetic Plaid-shaped US transactions with no network call. Enable live sandbox with <code>FINANCE_PLAID_ENABLED</code>, <code>PLAID_CLIENT_ID</code> and <code>PLAID_SECRET</code>.</>}</p>
+                      : <><strong>Preview with sample data.</strong> Folio will import six fictional Plaid-shaped transactions without contacting a bank. To use Plaid's sandbox, enable <code>FINANCE_PLAID_ENABLED</code> and add your Plaid credentials.</>}</p>
                   </div>
                 ) : null}
 
@@ -191,11 +191,11 @@ export function Onboarding({ backend, onComplete }: OnboardingProps) {
               {submitting
                 ? "Preparing locally…"
                 : sourceChoice === "demo"
-                  ? "Open Koru Studio"
+                  ? "Open Folio demo"
                   : sourceChoice === "akahu"
-                    ? backend.akahuReady ? "Sync Akahu read-only" : "Process sealed Akahu feed"
+                    ? backend.akahuReady ? "Sync Akahu read-only" : "Import sample Akahu data"
                     : sourceChoice === "plaid"
-                      ? backend.plaidReady ? "Sync Plaid sandbox read-only" : "Process sealed Plaid feed"
+                      ? backend.plaidReady ? "Sync Plaid sandbox read-only" : "Import sample Plaid data"
                       : "Import and continue"}<ArrowIcon size={15} />
             </button>
           </footer>

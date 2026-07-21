@@ -3,7 +3,7 @@
   "snapshotId": "snap_koru_after_close",
   "workspace": {
     "workspaceId": "ws_koru_studio",
-    "name": "Koru Studio",
+    "name": "Folio Demo Business",
     "entityType": "nz_sole_trader",
     "currency": "NZD",
     "timezone": "Pacific/Auckland",
@@ -49,7 +49,7 @@
     { "activityId": "activity_koru_daily_close", "kind": "job_run", "summary": "Daily Close completed from 10 source rows", "status": "completed", "occurredAt": "2026-07-17T08:00:04+12:00", "undoable": false, "correlationId": "corr_koru_daily_close_20260717", "evidenceIds": ["evd_koru_bank_csv"] }
   ],
   "sources": [
-    { "sourceItemId": "src_koru_bank_csv_20260717", "sourceType": "csv", "label": "Koru Studio bank export — July 2026", "digest": "c2c07beeca632f4e09700837cc4b199653ce9b68f65b804b7c30e9838ef94eac", "receivedAt": "2026-07-17T07:59:00+12:00", "status": "processed", "rowCount": 10 },
+    { "sourceItemId": "src_koru_bank_csv_20260717", "sourceType": "csv", "label": "Folio demo bank export — July 2026", "digest": "c2c07beeca632f4e09700837cc4b199653ce9b68f65b804b7c30e9838ef94eac", "receivedAt": "2026-07-17T07:59:00+12:00", "status": "processed", "rowCount": 10 },
     { "sourceItemId": "src_koru_telegram_910001", "sourceType": "telegram_fixture", "label": "Telegram parking receipt fixture", "digest": "58ec491e7cc4fcec630614b3db24da72986da10d0c52f813dfddfc101bc7e4a6", "receivedAt": "2026-07-17T09:00:00+12:00", "status": "pending", "rowCount": 1 }
   ],
   "totals": {
@@ -65,8 +65,8 @@
     "reserveShortfallMinor": 9923
   },
   "artifacts": [
-    { "artifactId": "artifact_koru_owner_pack_html", "kind": "owner_pack_html", "title": "Koru Studio owner pack", "contentHash": "6f82cd96595aee376b11efb62c3cc52d8e8724b9647e4e4fcf894f1d55770651", "generatedAt": "2026-07-17T08:00:03+12:00", "evidenceIds": ["evd_koru_bank_csv", "evd_koru_forecast_30d"] },
-    { "artifactId": "artifact_koru_owner_pack_pdf", "kind": "owner_pack_pdf", "title": "Koru Studio owner pack", "contentHash": "dc0f89a8fcbdf717462730ac5fc3084ac47f35f8f5732921223cdef0647bc865", "generatedAt": "2026-07-17T08:00:03+12:00", "evidenceIds": ["evd_koru_bank_csv", "evd_koru_forecast_30d"] }
+    { "artifactId": "artifact_koru_owner_pack_html", "kind": "owner_pack_html", "title": "Folio demo owner pack", "contentHash": "6f82cd96595aee376b11efb62c3cc52d8e8724b9647e4e4fcf894f1d55770651", "generatedAt": "2026-07-17T08:00:03+12:00", "evidenceIds": ["evd_koru_bank_csv", "evd_koru_forecast_30d"] },
+    { "artifactId": "artifact_koru_owner_pack_pdf", "kind": "owner_pack_pdf", "title": "Folio demo owner pack", "contentHash": "dc0f89a8fcbdf717462730ac5fc3084ac47f35f8f5732921223cdef0647bc865", "generatedAt": "2026-07-17T08:00:03+12:00", "evidenceIds": ["evd_koru_bank_csv", "evd_koru_forecast_30d"] }
   ],
   "modelMode": "local",
   "freshness": { "dataThrough": "2026-07-17T08:00:00+12:00", "status": "current", "timezone": "Pacific/Auckland" }

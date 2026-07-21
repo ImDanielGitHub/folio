@@ -35,12 +35,12 @@ _GAP_PROMPTS: tuple[tuple[str, str, str], ...] = (
     (
         "who",
         "who",
-        "Who usually makes the day-to-day spending calls for Koru Studio?",
+        "Who usually makes the day-to-day spending calls for your business?",
     ),
     (
         "what",
         "what",
-        "What kind of work is Koru Studio mostly taking on right now?",
+        "What kind of work is your business mostly taking on right now?",
     ),
     (
         "where",

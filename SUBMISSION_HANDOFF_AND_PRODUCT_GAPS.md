@@ -286,7 +286,7 @@ The following are product gaps, not hidden claims. They are ordered by the value
 4. **Multi-account and multi-currency support.** Current practical ingestion intentionally supports NZD and fails closed when an account cannot be identified. Production needs explicit account mapping, transfers, foreign currency, fees and exchange-rate provenance.
 5. **Collaborative accountant experience.** Add a scoped review link or local export bundle, comment/resolve states, preparer/reviewer separation and a concise change ledger suitable for an external accountant.
 6. **Accessibility and long-session QA.** Continue testing screen readers, keyboard-only use, high zoom, long conversations, large source sets, slow streaming, cancellation and lower-powered computers.
-7. **Licence and contributor model.** The repository is currently `UNLICENSED`. Daniel's open-source/free vision requires an intentional licence, contributor guide, security reporting process and a decision about which connector/provider modules can be redistributed.
+7. **Contributor and security model.** The repository is licensed under Apache-2.0. It still needs a contributor guide, security reporting process and an explicit review of which connector/provider modules can be redistributed.
 
 ## 10. What not to claim in the submission
 
@@ -294,7 +294,7 @@ The following are product gaps, not hidden claims. They are ordered by the value
 - Do not call the Telegram fixture a live bot or claim WhatsApp support.
 - Do not claim that the optional cloud path was exercised unless a credentialed response is captured.
 - Do not claim that the deterministic cash scenario is an ML prediction.
-- Do not claim the repository is open source while it remains `UNLICENSED`.
+- Describe Folio as Apache-2.0 open-source software, while keeping provider credentials and third-party service terms separate from the code licence.
 - Do not call a local build a signed/notarised packaged app.
 - Keep synthetic Koru Studio evidence visibly separate from any future real business data.
 
@@ -307,6 +307,6 @@ The following are product gaps, not hidden claims. They are ordered by the value
 5. Replace Telegram fixture with a secure real connector, then add WhatsApp only after the same trust boundary is proven.
 6. Benchmark representative small local models and publish the harness matrix.
 7. Add learned categorisation and calibrated forecasting only when each beats a simple baseline on held-out data.
-8. Select the open-source licence and add contribution/security policy.
+8. Add contribution and security policies, and document third-party connector redistribution boundaries.
 
 The target remains: **Folio already understands the whole business; the owner asks in ordinary language, and Folio quietly brings forward the right explanation, number, visualisation or document.** The deterministic and agentic complexity stays under the hood, while every material financial claim remains inspectable and correctable.
