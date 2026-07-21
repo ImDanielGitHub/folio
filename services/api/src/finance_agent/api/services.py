@@ -1695,6 +1695,12 @@ class LocalRouteServices:
         akahu_configured = bool(akahu["configured"])
         plaid = self.plaid.capability()
         plaid_configured = bool(plaid["configured"])
+        plaid_markets_value = plaid.get("markets")
+        plaid_markets = (
+            [str(market) for market in plaid_markets_value]
+            if isinstance(plaid_markets_value, list)
+            else ["US"]
+        )
         return {
             "providers": {
                 "demo": {
@@ -1728,7 +1734,7 @@ class LocalRouteServices:
                 "plaid": {
                     "status": "configured" if plaid_configured else "unconfigured",
                     "mode": "read_only",
-                    "markets": list(plaid.get("markets") or ["US"]),
+                    "markets": plaid_markets,
                     "supportsNewZealand": False,
                     "fixtureAvailable": True,
                     "environment": plaid.get("environment", "sandbox"),

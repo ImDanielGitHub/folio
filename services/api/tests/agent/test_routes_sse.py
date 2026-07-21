@@ -79,7 +79,12 @@ class FixtureRouteServices:
         return {"modes": {"local": {"status": "unavailable"}}}
 
     async def connection_capabilities(self) -> dict[str, object]:
-        return {"providers": {"akahu": {"status": "unconfigured"}, "plaid": {"status": "unconfigured"}}}
+        return {
+            "providers": {
+                "akahu": {"status": "unconfigured"},
+                "plaid": {"status": "unconfigured"},
+            }
+        }
 
     async def working_understanding_diagnostics(self, **kwargs: Any) -> dict[str, object]:
         return {

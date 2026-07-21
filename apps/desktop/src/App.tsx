@@ -201,7 +201,9 @@ export function App() {
   const [running, setRunning] = useState(false);
   const [activeStage, setActiveStage] = useState(-1);
   const [stageProgress, setStageProgress] = useState(0);
-  const [investigateLabel, setInvestigateLabel] = useState(investigateStages[0]);
+  const [investigateLabel, setInvestigateLabel] = useState<
+    (typeof investigateStages)[number]
+  >(investigateStages[0]);
   const [mobilePane, setMobilePane] = useState<"thread" | "canvas">("thread");
   const [threadWidth, setThreadWidth] = useState(() => Number(localStorage.getItem("folio:thread-width")) || 520);
   const [canvasOpen, setCanvasOpen] = useState(false);

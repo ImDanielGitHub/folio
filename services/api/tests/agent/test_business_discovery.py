@@ -42,7 +42,8 @@ def test_discovery_asks_one_question_after_thin_read() -> None:
     )
     assert decision.thin is True
     assert decision.question is not None
-    assert "spending" in decision.question.prompt.lower() or "work" in decision.question.prompt.lower()
+    prompt = decision.question.prompt.lower()
+    assert "spending" in prompt or "work" in prompt
 
 
 def test_discovery_skips_writes_and_open_questions() -> None:
@@ -91,4 +92,3 @@ def test_discovery_does_not_repeat_prompt_already_in_agent_turn() -> None:
     )
     assert gap is not None
     assert "spending" not in gap[1].lower()
-
