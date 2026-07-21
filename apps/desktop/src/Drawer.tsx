@@ -47,6 +47,7 @@ const sourceTypeLabels: Record<SourceItem["sourceType"], string> = {
   telegram_fixture: "Telegram message",
   owner_claim: "Owner note",
   akahu_fixture: "Akahu-shaped feed",
+  plaid_fixture: "Plaid-shaped feed",
 };
 
 const statusCopy: Record<SourceItem["status"], string> = {
@@ -70,6 +71,9 @@ function sourceInterpretation(source: SourceItem): string {
   }
   if (source.sourceType === "akahu_fixture") {
     return `Folio processed ${source.rowCount} synthetic provider rows through the same immutable source and evidence boundary used by a bank connector. The receipt records that no live Akahu sync was attempted.`;
+  }
+  if (source.sourceType === "plaid_fixture") {
+    return `Folio processed ${source.rowCount} synthetic Plaid-shaped rows through the same immutable source and evidence boundary used by a bank connector. The receipt records that no live Plaid sync was attempted.`;
   }
   return "Folio keeps this as an owner-provided claim. It can explain a decision, but it cannot silently replace source evidence or create a ledger fact.";
 }
@@ -100,6 +104,17 @@ function sourcePreview(source: SourceItem) {
         <div>
           <strong>{source.label}</strong>
           <p>{source.rowCount} synthetic read-only rows · no live bank request.</p>
+        </div>
+      </div>
+    );
+  }
+  if (source.sourceType === "plaid_fixture") {
+    return (
+      <div className="source-file-preview" aria-label={`Preview of ${source.label}`}>
+        <span className="source-file-type">API</span>
+        <div>
+          <strong>{source.label}</strong>
+          <p>{source.rowCount} synthetic Plaid-shaped rows · no live bank request.</p>
         </div>
       </div>
     );
@@ -465,8 +480,8 @@ export function Drawer({
                   </article>
                   <article>
                     <span><SourceIcon size={17} /></span>
-                    <div><strong>Plaid</strong><p>Hosted Link for supported overseas markets; New Zealand institutions are not supported.</p></div>
-                    <b className="connection-state state-off">Not configured</b>
+                    <div><strong>Plaid</strong><p>{backend.plaidReady ? "Configured for read-only sandbox Link and settled transactions." : "Sealed fixture by default. Live sandbox needs PLAID_CLIENT_ID and PLAID_SECRET. New Zealand institutions are not supported."}</p></div>
+                    <b className={`connection-state ${backend.plaidReady || sources.some((source) => source.sourceType === "plaid_fixture") ? "state-live" : "state-off"}`}>{backend.plaidReady ? "Ready" : sources.some((source) => source.sourceType === "plaid_fixture") ? "Fixture processed" : "Unconfigured"}</b>
                   </article>
                 </div>
                 <details className="technical-details connection-technical-details">
@@ -477,6 +492,7 @@ export function Drawer({
                     <div><dt>Local model status</dt><dd>{backend.lmStudioStatus}</dd></div>
                     <div><dt>Cloud credential</dt><dd>{backend.cloudCredentialState}</dd></div>
                     <div><dt>Akahu</dt><dd>{backend.akahuStatus}</dd></div>
+                    <div><dt>Plaid</dt><dd>{backend.plaidStatus}</dd></div>
                   </dl>
                 </details>
               </section>

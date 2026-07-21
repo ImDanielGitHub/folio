@@ -50,6 +50,16 @@ class AkahuSyncRequest(RequestModel):
     end: date | None = None
 
 
+class PlaidFixtureRequest(RequestModel):
+    account: dict[str, Any] | None = None
+    synced_at: str | None = Field(default=None, alias="syncedAt")
+    transactions: list[dict[str, Any]] | None = None
+
+
+class PlaidSyncRequest(RequestModel):
+    public_token: str | None = Field(default=None, alias="publicToken")
+
+
 class DailyCloseRequest(RequestModel):
     workspace_id: str = Field(alias="workspaceId")
     idempotency_key: str | None = Field(
@@ -147,6 +157,38 @@ def create_router() -> APIRouter:
             )
         except ConnectorError as exc:
             status = 409 if str(exc) == "Akahu is disabled or unconfigured" else 502
+            raise HTTPException(status_code=status, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @router.post("/v1/ingest/plaid-fixture")
+    async def ingest_plaid_fixture(
+        body: PlaidFixtureRequest,
+        services: Services,
+    ) -> dict[str, object]:
+        payload = body.model_dump(by_alias=True, exclude_none=True)
+        return dict(
+            await services.ingest_plaid_fixture(payload=payload or None)
+        )
+
+    @router.post("/v1/connectors/plaid/link-token")
+    async def create_plaid_link_token(services: Services) -> dict[str, object]:
+        try:
+            return dict(await services.create_plaid_link_token())
+        except ConnectorError as exc:
+            status = 409 if "disabled or unconfigured" in str(exc) else 502
+            raise HTTPException(status_code=status, detail=str(exc)) from exc
+
+    @router.post("/v1/connectors/plaid/sync")
+    async def sync_plaid(
+        services: Services,
+        body: PlaidSyncRequest | None = None,
+    ) -> dict[str, object]:
+        body = body or PlaidSyncRequest()
+        try:
+            return dict(await services.sync_plaid(public_token=body.public_token))
+        except ConnectorError as exc:
+            status = 409 if "disabled or unconfigured" in str(exc) else 502
             raise HTTPException(status_code=status, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc

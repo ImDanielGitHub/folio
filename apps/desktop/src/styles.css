@@ -3326,6 +3326,45 @@ summary {
   color: var(--muted);
 }
 
+.toast-emphasis {
+  border-color: color-mix(in srgb, var(--green) 45%, var(--line-strong));
+  background: #23271f;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 550;
+}
+
+.toast-action {
+  display: inline-flex !important;
+  width: auto !important;
+  height: auto !important;
+  align-items: center;
+  gap: 5px;
+  margin-left: 4px;
+  padding: 5px 9px !important;
+  border: 1px solid color-mix(in srgb, var(--green) 55%, var(--line-strong)) !important;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--green) 18%, transparent) !important;
+  color: var(--text) !important;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.toast-action:hover {
+  background: color-mix(in srgb, var(--green) 28%, transparent) !important;
+}
+
+.canvas-undo-button {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--green) 50%, var(--line-strong));
+  background: color-mix(in srgb, var(--green) 14%, transparent);
+  font-weight: 600;
+}
+
+.canvas-undo-button:hover {
+  background: color-mix(in srgb, var(--green) 22%, transparent);
+}
+
 @keyframes message-in {
   from { opacity: 0; transform: translateY(5px); }
 }
@@ -3848,7 +3887,7 @@ body,
 }
 
 .suggestion-row {
-  display: none;
+  display: flex;
 }
 
 .composer {

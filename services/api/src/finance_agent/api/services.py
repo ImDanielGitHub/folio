@@ -47,8 +47,18 @@ from finance_agent.connectors.akahu import (
     normalise_transactions,
 )
 from finance_agent.connectors.base import ConnectorError
+from finance_agent.connectors.plaid import (
+    PlaidReadOnlyAdapter,
+)
+from finance_agent.connectors.plaid import (
+    normalise_accounts as normalise_plaid_accounts,
+)
+from finance_agent.connectors.plaid import (
+    normalise_transactions as normalise_plaid_transactions,
+)
+from finance_agent.connectors.plaid_fixture import PlaidFixtureIngestor
 from finance_agent.finance import FinanceEngine, FinanceStateError, FinanceTotals
-from finance_agent.finance.service import THREAD_ID, WORKSPACE_ID
+from finance_agent.finance.service import PLAID_ACCOUNT_ID, THREAD_ID, WORKSPACE_ID
 from finance_agent.finance.surfaces import (
     living_brief_surface,
 )
@@ -70,6 +80,9 @@ AKAHU_MAPPING_VERSION = "akahu_live@1"
 AKAHU_MAX_PAGES = 100
 AKAHU_MAX_ITEMS = 20_000
 AKAHU_MAX_WINDOW_DAYS = 366
+PLAID_MAPPING_VERSION = "plaid_live@1"
+PLAID_MAX_PAGES = 100
+PLAID_MAX_ITEMS = 20_000
 NEW_ZEALAND_TIME = ZoneInfo("Pacific/Auckland")
 
 
@@ -686,6 +699,7 @@ class LocalRouteServices:
         *,
         auto_seed: bool = True,
         akahu_adapter: AkahuReadOnlyAdapter | None = None,
+        plaid_adapter: PlaidReadOnlyAdapter | None = None,
     ) -> None:
         self.store = SQLiteStore(database_path)
         self.engine = FinanceEngine(self.store)
@@ -698,6 +712,7 @@ class LocalRouteServices:
             TelegramConfig(allowed_chat_id=700001)
         )
         self.akahu = akahu_adapter or AkahuReadOnlyAdapter()
+        self.plaid = plaid_adapter or PlaidReadOnlyAdapter()
         self.local_model = LMStudioAdapter(LMStudioConfig.from_env())
         self.cloud_model = OpenAIResponsesAdapter(OpenAIConfig.from_env())
         self.model_router = ModelModeRouter(self.local_model, self.cloud_model)
@@ -1304,6 +1319,156 @@ class LocalRouteServices:
                 "externalCallsMade": True,
             }
 
+    async def ingest_plaid_fixture(
+        self,
+        *,
+        payload: Mapping[str, object] | None,
+    ) -> Mapping[str, object]:
+        async with self._lock:
+            result = self.engine.ingest_plaid_fixture(payload)
+            self.working_understanding.ensure_current(workspace_id=WORKSPACE_ID)
+            return {
+                "sourceItemId": result.source_item_id,
+                "status": result.status,
+                "accountLabel": result.account_label,
+                "syncedAt": result.synced_at,
+                "rowCount": result.row_count,
+                "sourceSha256": result.digest,
+                "providerCurrency": result.currency,
+                "liveSyncAttempted": result.live_sync_attempted,
+            }
+
+    async def create_plaid_link_token(self) -> Mapping[str, object]:
+        token = await self.plaid.create_link_token()
+        return {
+            "linkToken": token,
+            "environment": self.plaid.config.environment,
+            "liveSyncAttempted": True,
+            "externalCallsMade": True,
+        }
+
+    async def sync_plaid(
+        self,
+        *,
+        public_token: str | None = None,
+    ) -> Mapping[str, object]:
+        """Exchange/create an access token ephemerally and commit settled USD rows."""
+
+        access_token = await self.plaid.resolve_access_token(public_token)
+        account_items = await self.plaid.list_accounts(access_token=access_token)
+        accounts = normalise_plaid_accounts(account_items)
+        if not accounts:
+            raise ConnectorError("Plaid returned no accounts")
+
+        transaction_items: list[Mapping[str, object]] = []
+        cursor: str | None = None
+        for _ in range(PLAID_MAX_PAGES):
+            page_items, next_cursor, has_more = await self.plaid.sync_transactions(
+                access_token=access_token,
+                cursor=cursor,
+            )
+            transaction_items.extend(page_items)
+            if len(transaction_items) > PLAID_MAX_ITEMS:
+                raise ConnectorError("Plaid transaction sync exceeded the local item limit")
+            if not has_more or next_cursor is None:
+                break
+            cursor = next_cursor
+        else:
+            raise ConnectorError("Plaid transaction sync exceeded the page limit")
+
+        transactions = normalise_plaid_transactions(tuple(transaction_items), accounts)
+        synced_at = _now().isoformat()
+        async with self._lock:
+            with self.store.transaction() as connection:
+                for account in accounts:
+                    existing = connection.execute(
+                        "SELECT workspace_id FROM accounts WHERE account_id = ?",
+                        (account.account_id,),
+                    ).fetchone()
+                    if existing is not None and str(existing["workspace_id"]) != WORKSPACE_ID:
+                        raise ConnectorError(
+                            "Plaid account identity conflicts with another workspace"
+                        )
+                    connection.execute(
+                        """
+                        INSERT OR IGNORE INTO accounts(
+                            account_id, workspace_id, name, currency, created_at
+                        ) VALUES (?, ?, ?, 'NZD', ?)
+                        """,
+                        (
+                            account.account_id,
+                            WORKSPACE_ID,
+                            f"Plaid · {account.label}",
+                            synced_at,
+                        ),
+                    )
+                existing_references = {
+                    str(row["external_reference"])
+                    for row in connection.execute(
+                        """
+                        SELECT external_reference FROM source_rows
+                        WHERE mapping_version IN (?, ?)
+                        """,
+                        (PLAID_MAPPING_VERSION, PlaidFixtureIngestor.MAPPING_VERSION),
+                    )
+                }
+            new_transactions = tuple(
+                transaction
+                for transaction in transactions
+                if transaction.external_reference not in existing_references
+            )
+            if not new_transactions:
+                self.working_understanding.ensure_current(workspace_id=WORKSPACE_ID)
+                return {
+                    "sourceItemId": None,
+                    "status": "no_new_transactions",
+                    "sourceSha256": None,
+                    "accountCount": len(accounts),
+                    "transactionCount": len(transactions),
+                    "rowCount": 0,
+                    "settledOnly": True,
+                    "liveSyncAttempted": True,
+                    "externalCallsMade": True,
+                }
+
+            primary = accounts[0]
+            payload = {
+                "account": {
+                    "name": primary.label,
+                    "maskedNumber": primary.mask or "",
+                    "currency": "USD",
+                },
+                "syncedAt": synced_at,
+                "transactions": [
+                    {
+                        "occurredOn": transaction.occurred_on,
+                        "description": transaction.description,
+                        "amountMinor": transaction.amount_minor,
+                        "externalReference": transaction.external_reference,
+                        "status": "posted",
+                    }
+                    for transaction in new_transactions
+                ],
+            }
+            imported = self.engine.ingest_plaid_fixture(
+                payload,
+                source_item_id=_stable_id("src", "plaid_live", synced_at, primary.provider_id),
+                mapping_version=PLAID_MAPPING_VERSION,
+                account_id=primary.account_id or PLAID_ACCOUNT_ID,
+            )
+            self.working_understanding.ensure_current(workspace_id=WORKSPACE_ID)
+            return {
+                "sourceItemId": imported.source_item_id,
+                "status": imported.status,
+                "sourceSha256": imported.digest,
+                "accountCount": len(accounts),
+                "transactionCount": len(transactions),
+                "rowCount": imported.row_count,
+                "settledOnly": True,
+                "liveSyncAttempted": True,
+                "externalCallsMade": True,
+            }
+
     async def ingest_telegram_fixture(
         self,
         *,
@@ -1528,6 +1693,8 @@ class LocalRouteServices:
     async def connection_capabilities(self) -> Mapping[str, object]:
         akahu = self.akahu.capability()
         akahu_configured = bool(akahu["configured"])
+        plaid = self.plaid.capability()
+        plaid_configured = bool(plaid["configured"])
         return {
             "providers": {
                 "demo": {
@@ -1559,13 +1726,25 @@ class LocalRouteServices:
                     ),
                 },
                 "plaid": {
-                    "status": "not_installed",
+                    "status": "configured" if plaid_configured else "unconfigured",
                     "mode": "read_only",
-                    "markets": [],
+                    "markets": list(plaid.get("markets") or ["US"]),
                     "supportsNewZealand": False,
+                    "fixtureAvailable": True,
+                    "environment": plaid.get("environment", "sandbox"),
+                    "linkTokenPath": "/v1/connectors/plaid/link-token",
+                    "liveSyncPath": "/v1/connectors/plaid/sync",
+                    "credentialSource": (
+                        "process_environment" if plaid_configured else "absent"
+                    ),
                     "detail": (
-                        "Plaid does not support New Zealand. A sandbox Hosted Link "
-                        "adapter is not yet configured in this build."
+                        "Read-only Plaid sandbox Link is configured for this process."
+                        if plaid_configured
+                        else (
+                            "The sealed Plaid-shaped demo is available. Live sandbox Link "
+                            "requires process-injected PLAID_CLIENT_ID and PLAID_SECRET. "
+                            "Plaid does not support New Zealand banks."
+                        )
                     ),
                 },
             },
@@ -1587,6 +1766,7 @@ class LocalRouteServices:
 
     async def aclose(self) -> None:
         await self.akahu.aclose()
+        await self.plaid.aclose()
         await self.local_model.aclose()
         await self.cloud_model.aclose()
 

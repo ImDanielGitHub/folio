@@ -4,11 +4,11 @@ import type { BackendHealth } from "./transport";
 
 type OnboardingProps = {
   backend: BackendHealth;
-  onComplete: (sourceChoice: "demo" | "akahu" | "csv", file: File | null) => Promise<void>;
+  onComplete: (sourceChoice: "demo" | "akahu" | "plaid" | "csv", file: File | null) => Promise<void>;
 };
 
 export function Onboarding({ backend, onComplete }: OnboardingProps) {
-  const [sourceChoice, setSourceChoice] = useState<"demo" | "akahu" | "csv">("demo");
+  const [sourceChoice, setSourceChoice] = useState<"demo" | "akahu" | "plaid" | "csv">("demo");
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -102,6 +102,23 @@ export function Onboarding({ backend, onComplete }: OnboardingProps) {
 
                   <button
                     type="button"
+                    className={`choice-card ${sourceChoice === "plaid" ? "is-selected" : ""}`}
+                    aria-pressed={sourceChoice === "plaid"}
+                    disabled={backend.mode !== "live"}
+                    onClick={() => setSourceChoice("plaid")}
+                  >
+                    <span className="choice-icon"><SourceIcon /></span>
+                    <span>
+                      <strong>{backend.plaidReady ? "Sync Plaid sandbox read-only" : "Preview a Plaid import"}</strong>
+                      <small>{backend.plaidReady
+                        ? "Bring settled US sandbox transactions into Folio through this computer."
+                        : "Process a sealed, read-only US bank feed shaped like Plaid through the real source and evidence pipeline."}</small>
+                    </span>
+                    <i aria-hidden="true">{sourceChoice === "plaid" ? <CheckIcon size={14} /> : null}</i>
+                  </button>
+
+                  <button
+                    type="button"
                     className={`choice-card ${sourceChoice === "csv" ? "is-selected" : ""}`}
                     aria-pressed={sourceChoice === "csv"}
                     onClick={() => setSourceChoice("csv")}
@@ -135,7 +152,16 @@ export function Onboarding({ backend, onComplete }: OnboardingProps) {
                   </div>
                 ) : null}
 
-                <p className="onboarding-market-note">Plaid Hosted Link is intended for supported US, Canadian, UK and European institutions. Plaid does not support New Zealand banks, so Folio routes New Zealand owners to Akahu or local statements.</p>
+                {sourceChoice === "plaid" ? (
+                  <div className="onboarding-callout onboarding-provider-callout">
+                    <SourceIcon size={16} />
+                    <p>{backend.plaidReady
+                      ? <><strong>Plaid sandbox is configured.</strong> Folio will create a Link token or sync settled sandbox transactions read-only. Access tokens are not stored.</>
+                      : <><strong>Default is the sealed fixture.</strong> This uses six synthetic Plaid-shaped US transactions with no network call. Enable live sandbox with <code>FINANCE_PLAID_ENABLED</code>, <code>PLAID_CLIENT_ID</code> and <code>PLAID_SECRET</code>.</>}</p>
+                  </div>
+                ) : null}
+
+                <p className="onboarding-market-note">Plaid Link is for supported US, Canadian, UK and European institutions. Plaid does not support New Zealand banks, so Folio routes New Zealand owners to Akahu or local statements.</p>
 
                 <div className="onboarding-callout onboarding-privacy-callout">
                   <PrivacyIcon size={16} />
@@ -168,7 +194,9 @@ export function Onboarding({ backend, onComplete }: OnboardingProps) {
                   ? "Open Koru Studio"
                   : sourceChoice === "akahu"
                     ? backend.akahuReady ? "Sync Akahu read-only" : "Process sealed Akahu feed"
-                    : "Import and continue"}<ArrowIcon size={15} />
+                    : sourceChoice === "plaid"
+                      ? backend.plaidReady ? "Sync Plaid sandbox read-only" : "Process sealed Plaid feed"
+                      : "Import and continue"}<ArrowIcon size={15} />
             </button>
           </footer>
         </main>

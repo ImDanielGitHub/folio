@@ -109,7 +109,7 @@ export type SourceListBlock = {
   sources: Array<{
     sourceItemId: string;
     label: string;
-    sourceType: "csv" | "telegram_fixture" | "owner_claim" | "akahu_fixture";
+    sourceType: "csv" | "telegram_fixture" | "owner_claim" | "akahu_fixture" | "plaid_fixture";
     receivedAt: string;
     status: "pending" | "processed" | "failed";
   }>;
@@ -211,7 +211,7 @@ export type ActivityItem = {
 
 export type SourceItem = {
   sourceItemId: string;
-  sourceType: "csv" | "telegram_fixture" | "owner_claim" | "akahu_fixture";
+  sourceType: "csv" | "telegram_fixture" | "owner_claim" | "akahu_fixture" | "plaid_fixture";
   label: string;
   receivedAt: string;
   status: "pending" | "processed" | "failed";

@@ -33,6 +33,8 @@ The model plans and explains; deterministic finance code owns amounts, transacti
 | Optional cloud route | Thin OpenAI Responses API adapter; no live credential is required for local or fixture operation |
 | Evidence-backed artefacts | Deterministic HTML/PDF owner-pack generator and source links |
 | Telegram-shaped input | Synthetic fixture adapter only; no real bot or owner account is connected |
+| Akahu connector | Sealed NZ fixture by default; optional config-gated read-only live sync |
+| Plaid connector | Sealed US fixture by default; optional config-gated sandbox Link / sync |
 
 See [PROTOTYPE_RECEIPT.md](PROTOTYPE_RECEIPT.md) for current verification and explicit gaps.
 
@@ -150,7 +152,7 @@ Codex with GPT-5.6 was used for research, architecture, implementation, test gen
 
 ## Current limits
 
-- The default data source is a synthetic fixture or local CSV; there is no live bank connection.
+- The default data source is a synthetic fixture, local CSV, or sealed Akahu/Plaid connector feed; live bank sync is config-gated and off by default.
 - Telegram support is fixture-backed. No real bot round trip is part of the proof.
 - The cash forecast is a deterministic scenario over known fixture commitments, not predictive certainty.
 - A local-model transport smoke is recorded; the four-case live model benchmark is optional and may not have been run on the current machine state.

@@ -30,9 +30,11 @@ import {
   SourceIcon,
   SparkIcon,
   StopIcon,
+  UndoIcon,
 } from "./icons";
 import {
   ingestAkahuFixture,
+  ingestPlaidFixture,
   ingestTelegramFixture,
   importCsv,
   loadSnapshot,
@@ -43,6 +45,7 @@ import {
   resetDemo,
   runDailyClose,
   syncAkahuLive,
+  syncPlaidLive,
   undoEvent,
   type BackendHealth,
 } from "./transport";
@@ -69,6 +72,9 @@ const initialBackend: BackendHealth = {
   akahuReady: false,
   akahuStatus: "unconfigured",
   akahuDetail: "Checking local Akahu configuration…",
+  plaidReady: false,
+  plaidStatus: "unconfigured",
+  plaidDetail: "Checking local Plaid configuration…",
 };
 
 const nowIso = () => new Date().toISOString();
@@ -84,13 +90,20 @@ function modelLabel(mode: ModelMode) {
   return mode === "local" ? "Local" : mode === "hybrid" ? "Hybrid" : "Cloud";
 }
 
-function runtimeStatusCopy(backend: BackendHealth): string {
-  if (backend.mode === "checking") return "Connecting…";
-  if (backend.mode === "live") return "Local service connected";
-  if (backend.mode === "degraded") return "Local service needs attention";
-  if (backend.mode === "offline") return "Offline · last view";
-  return "Sealed demo";
+function modelModeBadge(mode: ModelMode, backend: BackendHealth): string {
+  if (mode === "local") {
+    return backend.lmStudioReady ? "Local model" : "Local fallback";
+  }
+  if (mode === "hybrid") return "Hybrid";
+  return "Cloud";
 }
+
+const investigateStages = [
+  { title: "Inspecting committed facts", detail: "Reading the local ledger and linked evidence" },
+  { title: "Checking source coverage", detail: "Matching bank rows, claims and open findings" },
+  { title: "Drafting with the local model", detail: "LM Studio is generating — amounts stay deterministic" },
+  { title: "Verifying before reply", detail: "Finance numbers stay on this Mac; only the wording is drafted" },
+] as const;
 
 const liveSurfacePrompts: Record<SurfaceType, string> = {
   living_brief: "Show me the current finance summary.",
@@ -111,6 +124,12 @@ function modeSelectionMessage(mode: ModelMode, backend: BackendHealth): string {
   if (backend.cloudReady) return `${modelLabel(mode)} mode selected. OpenAI is configured; finance computation remains local.`;
   return `${modelLabel(mode)} mode selected, but OpenAI is unavailable. Folio will use its deterministic local fallback and make no external call.`;
 }
+
+type ToastState = {
+  message: string;
+  actionLabel?: string;
+  onAction?: () => void;
+};
 
 type ThreadMessageProps = {
   turn: ThreadTurn;
@@ -180,25 +199,37 @@ export function App() {
   const [drawer, setDrawer] = useState<DrawerKind | null>(null);
   const [composer, setComposer] = useState("");
   const [running, setRunning] = useState(false);
-  const [, setActiveStage] = useState(-1);
+  const [activeStage, setActiveStage] = useState(-1);
   const [stageProgress, setStageProgress] = useState(0);
+  const [investigateLabel, setInvestigateLabel] = useState(investigateStages[0]);
   const [mobilePane, setMobilePane] = useState<"thread" | "canvas">("thread");
   const [threadWidth, setThreadWidth] = useState(() => Number(localStorage.getItem("folio:thread-width")) || 520);
   const [canvasOpen, setCanvasOpen] = useState(false);
   const [canvasFocus, setCanvasFocus] = useState(false);
   const [surfaceMenuOpen, setSurfaceMenuOpen] = useState(false);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
   const [telegramImported, setTelegramImported] = useState(false);
   const [correctionActive, setCorrectionActive] = useState(false);
   const runToken = useRef(0);
+  const undoHandlerRef = useRef<(eventId: string) => Promise<void>>(async () => undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const threadScrollRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true);
+  const toastTimer = useRef<number | null>(null);
 
-  const showToast = useCallback((message: string) => {
-    setToast(message);
-    window.setTimeout(() => setToast((current) => current === message ? null : current), 2600);
+  const showToast = useCallback((message: string, options?: { actionLabel?: string; onAction?: () => void; durationMs?: number }) => {
+    const next: ToastState = {
+      message,
+      actionLabel: options?.actionLabel,
+      onAction: options?.onAction,
+    };
+    setToast(next);
+    if (toastTimer.current !== null) window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(
+      () => setToast((current) => current === next ? null : current),
+      options?.durationMs ?? (options?.actionLabel ? 8000 : 3200),
+    );
   }, []);
 
   const applySnapshot = useCallback((snapshot: typeof workspaceFixture) => {
@@ -235,6 +266,9 @@ export function App() {
         akahuReady: false,
         akahuStatus: "unconfigured",
         akahuDetail: "The sealed demo makes no Akahu request.",
+        plaidReady: false,
+        plaidStatus: "unconfigured",
+        plaidDetail: "The sealed demo makes no Plaid request.",
       });
       return () => { active = false; };
     }
@@ -279,9 +313,27 @@ export function App() {
     } else {
       setShowJumpToLatest(true);
     }
-  }, [turns, running]);
+  }, [turns, running, investigateLabel]);
 
-  const completeOnboarding = async (sourceChoice: "demo" | "akahu" | "csv", csvFile: File | null): Promise<void> => {
+  useEffect(() => {
+    if (!running) {
+      setInvestigateLabel(investigateStages[0]);
+      setStageProgress(0);
+      return;
+    }
+    let step = 0;
+    setInvestigateLabel(investigateStages[0]);
+    setStageProgress(0.18);
+    const tick = window.setInterval(() => {
+      step = (step + 1) % investigateStages.length;
+      setInvestigateLabel(investigateStages[step]!);
+      setStageProgress((current) => Math.min(0.92, Math.max(0.18, current + 0.12)));
+      setActiveStage(step);
+    }, backend.lmStudioReady && modelMode === "local" ? 4200 : 1600);
+    return () => window.clearInterval(tick);
+  }, [backend.lmStudioReady, modelMode, running]);
+
+  const completeOnboarding = async (sourceChoice: "demo" | "akahu" | "plaid" | "csv", csvFile: File | null): Promise<void> => {
     if (backend.mode === "live") {
       try {
         if (sourceChoice === "csv" && csvFile) {
@@ -297,6 +349,15 @@ export function App() {
           }
           const close = await runDailyClose();
           await readRunEvents(close.runId);
+        } else if (sourceChoice === "plaid") {
+          if (backend.plaidReady) {
+            await syncPlaidLive();
+          } else {
+            await resetDemo();
+            await ingestPlaidFixture();
+          }
+          const close = await runDailyClose();
+          await readRunEvents(close.runId);
         }
         applySnapshot(await loadSnapshot("ws_koru_studio"));
       } catch {
@@ -306,7 +367,11 @@ export function App() {
             ? backend.akahuReady
               ? "Akahu could not be read. Folio preserved the existing workspace; check the process credentials and connection, then try again."
               : "The sealed Akahu feed could not be committed. No live bank request was made and the existing workspace was preserved."
-            : "The local service could not open this workspace. Keep this screen open and try again.");
+            : sourceChoice === "plaid"
+              ? backend.plaidReady
+                ? "Plaid could not be read. Folio preserved the existing workspace; check the process credentials and connection, then try again."
+                : "The sealed Plaid feed could not be committed. No live bank request was made and the existing workspace was preserved."
+              : "The local service could not open this workspace. Keep this screen open and try again.");
       }
       try {
         localStorage.setItem("folio:onboarded", "yes");
@@ -320,7 +385,11 @@ export function App() {
           ? backend.akahuReady
             ? "Akahu settled transactions were synchronised read-only and Folio refreshed its current picture."
             : "The sealed Akahu feed was processed locally. No live sync was attempted."
-          : "Koru Studio is ready. Folio opened the most useful next question.");
+          : sourceChoice === "plaid"
+            ? backend.plaidReady
+              ? "Plaid sandbox transactions were synchronised read-only and Folio refreshed its current picture."
+              : "The sealed Plaid feed was processed locally. No live sync was attempted."
+            : "Koru Studio is ready. Folio opened the most useful next question.");
       return;
     }
     if (backend.mode !== "fixture") {
@@ -523,7 +592,12 @@ export function App() {
     openSurface(correctedReceiptSurface);
     setRunning(false);
     setActiveStage(-1);
-    showToast("Correction committed. Undo is available.");
+    const undoEventId = "evt_koru_mitre_rule_created";
+    showToast("Correction committed", {
+      actionLabel: "Undo",
+      onAction: () => { void undoHandlerRef.current(undoEventId); },
+      durationMs: 10000,
+    });
   }, [openSurface, showToast]);
 
   const submitTurn = useCallback(async () => {
@@ -550,6 +624,21 @@ export function App() {
         const snapshot = await loadSnapshot("ws_koru_studio");
         if (runToken.current !== token) return;
         applySnapshot(snapshot);
+        const undoAction = snapshot.currentSurface.actions.find((action) => action.type === "undo_event");
+        const isCorrectionReceipt = snapshot.currentSurface.surfaceType === "work_receipt"
+          && Boolean(undoAction && undoAction.type === "undo_event");
+        if (isCorrectionReceipt || snapshot.currentSurface.surfaceType === "work_receipt") {
+          setCanvasOpen(true);
+          setCanvasFocus(false);
+          setMobilePane("canvas");
+        }
+        if (undoAction && undoAction.type === "undo_event" && isCorrectionReceipt) {
+          showToast("Correction committed", {
+            actionLabel: "Undo",
+            onAction: () => { void undoHandlerRef.current(undoAction.eventId); },
+            durationMs: 10000,
+          });
+        }
         setRunning(false);
         setActiveStage(-1);
         return;
@@ -658,6 +747,8 @@ export function App() {
     openSurface(undoneReceiptSurface);
     showToast("Inverse event applied; history preserved.");
   }, [applySnapshot, backend.mode, correctionActive, markDegraded, openSurface, showToast]);
+
+  undoHandlerRef.current = handleUndo;
 
   const importTelegram = useCallback(async () => {
     if (telegramImported) return;
@@ -875,8 +966,8 @@ export function App() {
             </div>
             <div className="thread-header-actions">
               <button className="privacy-chip" title={backend.detail} onClick={() => setDrawer("connections")}>
-                <span className={`mode-dot runtime-${backend.mode}`} />
-                {runtimeStatusCopy(backend)}
+                <span className={`mode-dot mode-${modelMode} runtime-${backend.mode}`} />
+                {modelModeBadge(modelMode, backend)}
               </button>
               <button className="quiet-close-button" onClick={() => void handleDailyClose()} disabled={running}>
                 <SparkIcon size={14} /> Daily Close
@@ -921,11 +1012,19 @@ export function App() {
                   <div className="progress-heading">
                     <span className="agent-avatar"><SparkIcon size={14} /></span>
                     <div>
-                      <strong>Folio is working</strong>
-                      <span>Checking your committed facts and linked sources</span>
+                      <strong>{investigateLabel.title}</strong>
+                      <span>{investigateLabel.detail}</span>
                     </div>
+                    <b>{modelMode === "local" ? (backend.lmStudioReady ? "Local" : "Fallback") : modelMode === "hybrid" ? "Hybrid" : "Cloud"}</b>
                   </div>
                   <div className="progress-bar" aria-hidden="true"><i style={{ width: `${Math.max(stageProgress * 100, 18)}%` }} /></div>
+                  <div className="stage-list" aria-hidden="true">
+                    {investigateStages.map((stage, index) => (
+                      <span key={stage.title} className={index === activeStage ? "is-active" : index < activeStage ? "is-done" : ""}>
+                        <i />{stage.title}
+                      </span>
+                    ))}
+                  </div>
                 </article>
               ) : null}
               <div ref={messagesEndRef} />
@@ -938,6 +1037,7 @@ export function App() {
             <div className="conversation-column">
               {!running ? (
                 <div className="suggestion-row">
+                  <button onClick={() => setComposer("What needs my attention today, and what do you still need to know about Koru Studio?")}>What needs attention?</button>
                   <button onClick={() => setComposer("The MITRE 10 purchase was materials for a client fit-out. Treat similar purchases under $500 the same way.")}>Explain MITRE 10</button>
                   <button onClick={() => setComposer("Show me what happens if I defer the laptop purchase.")}>Test laptop timing</button>
                 </div>
@@ -958,7 +1058,13 @@ export function App() {
                   aria-label="Message Folio"
                 />
                 <div className="composer-footer">
-                  <span><PrivacyIcon size={13} /> {running ? "Working from committed facts" : modelMode === "local" ? "Private on this device" : "Finance computation stays local"}</span>
+                  <span><PrivacyIcon size={13} /> {running
+                    ? (modelMode === "local" && backend.lmStudioReady
+                      ? "Local model drafting — finance stays deterministic"
+                      : "Working from committed facts")
+                    : modelMode === "local"
+                      ? (backend.lmStudioReady ? "Private on this device · LM Studio ready" : "Private on this device · local fallback")
+                      : "Finance computation stays local"}</span>
                   {running ? (
                     <button className="stop-button" onClick={stopCurrentRun}><StopIcon size={14} /> Stop &amp; synthesise</button>
                   ) : (
@@ -1006,6 +1112,18 @@ export function App() {
                     </div>
                   ) : null}
                 </div>
+                {(() => {
+                  const undoAction = surface.actions.find((action) => action.type === "undo_event");
+                  if (!undoAction || undoAction.type !== "undo_event") return null;
+                  return (
+                    <button
+                      className="canvas-tool-button canvas-undo-button"
+                      onClick={() => void handleUndo(undoAction.eventId)}
+                    >
+                      <UndoIcon size={15} /> Undo
+                    </button>
+                  );
+                })()}
                 <button className="canvas-tool-button" aria-pressed={canvasFocus} onClick={() => setCanvasFocus((focus) => !focus)}>{canvasFocus ? "Show chat" : "Focus"}</button>
                 <button className="icon-close-button" aria-label="Close financial view" onClick={closeCanvas}><CloseIcon size={16} /></button>
               </div>
@@ -1045,7 +1163,26 @@ export function App() {
       />
 
       {showOnboarding ? <Onboarding backend={backend} onComplete={completeOnboarding} /> : null}
-      {toast ? <div className="toast" role="status"><CheckIcon size={15} />{toast}<button aria-label="Dismiss" onClick={() => setToast(null)}><CloseIcon size={13} /></button></div> : null}
+      {toast ? (
+        <div className={`toast ${toast.actionLabel ? "toast-emphasis" : ""}`} role="status">
+          <CheckIcon size={15} />
+          <span>{toast.message}</span>
+          {toast.actionLabel && toast.onAction ? (
+            <button
+              className="toast-action"
+              onClick={() => {
+                const action = toast.onAction;
+                setToast(null);
+                action?.();
+              }}
+            >
+              <UndoIcon size={13} />
+              {toast.actionLabel}
+            </button>
+          ) : null}
+          <button aria-label="Dismiss" onClick={() => setToast(null)}><CloseIcon size={13} /></button>
+        </div>
+      ) : null}
     </div>
   );
 }

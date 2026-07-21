@@ -1,0 +1,228 @@
+#!/usr/bin/env bash
+# Folio demo launcher — idempotent start for Build Week recording.
+# Usage:
+#   ./run                 Start API + web UI, wait for health, print URLs
+#   ./run --reset         Also reset Koru Studio to a clean seed
+#   ./run --with-lms      Also start LM Studio server and load the local model
+#   ./run --electron      Also launch the Electron shell (after web is healthy)
+#   ./run --stop          Stop Folio API/UI processes started by this script
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+cd "$ROOT"
+
+API_HOST="127.0.0.1"
+API_PORT="8787"
+UI_HOST="127.0.0.1"
+UI_PORT="4173"
+API_URL="http://${API_HOST}:${API_PORT}"
+UI_URL="http://${UI_HOST}:${UI_PORT}"
+LOG_DIR="${ROOT}/var/run-logs"
+PID_DIR="${ROOT}/var/run"
+API_LOG="${LOG_DIR}/api.log"
+UI_LOG="${LOG_DIR}/ui.log"
+API_PID_FILE="${PID_DIR}/api.pid"
+UI_PID_FILE="${PID_DIR}/ui.pid"
+LMS_MODEL_DEFAULT="qwen3.5-9b"
+DO_RESET=0
+DO_LMS=0
+DO_ELECTRON=0
+DO_STOP=0
+
+for arg in "$@"; do
+  case "$arg" in
+    --reset) DO_RESET=1 ;;
+    --with-lms) DO_LMS=1 ;;
+    --electron) DO_ELECTRON=1 ;;
+    --stop) DO_STOP=1 ;;
+    -h|--help)
+      sed -n '2,12p' "$0"
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $arg" >&2
+      echo "Try: ./run --help" >&2
+      exit 2
+      ;;
+  esac
+done
+
+mkdir -p "$LOG_DIR" "$PID_DIR" "${ROOT}/var"
+
+log() { printf '%s\n' "$*"; }
+die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+
+api_healthy() {
+  curl -fsS --max-time 2 "${API_URL}/health" >/dev/null 2>&1
+}
+
+ui_healthy() {
+  curl -fsS --max-time 2 "${UI_URL}/" >/dev/null 2>&1
+}
+
+stop_pidfile() {
+  local file="$1" name="$2"
+  if [[ -f "$file" ]]; then
+    local pid
+    pid="$(cat "$file" 2>/dev/null || true)"
+    if [[ -n "${pid}" ]] && kill -0 "$pid" 2>/dev/null; then
+      log "Stopping ${name} (pid ${pid})…"
+      kill "$pid" 2>/dev/null || true
+      for _ in $(seq 1 20); do
+        kill -0 "$pid" 2>/dev/null || break
+        sleep 0.25
+      done
+      if kill -0 "$pid" 2>/dev/null; then
+        kill -9 "$pid" 2>/dev/null || true
+      fi
+    fi
+    rm -f "$file"
+  fi
+}
+
+if [[ "$DO_STOP" -eq 1 ]]; then
+  stop_pidfile "$API_PID_FILE" "API"
+  stop_pidfile "$UI_PID_FILE" "UI"
+  log "Folio run processes stopped (external listeners on ${API_PORT}/${UI_PORT} left alone)."
+  exit 0
+fi
+
+command -v pnpm >/dev/null || die "pnpm is required"
+command -v curl >/dev/null || die "curl is required"
+command -v uv >/dev/null || die "uv is required"
+command -v node >/dev/null || die "Node.js is required"
+
+if [[ ! -f "${ROOT}/.env" ]]; then
+  cp "${ROOT}/.env.example" "${ROOT}/.env"
+  log "Created .env from .env.example"
+fi
+
+# shellcheck disable=SC1091
+set -a
+source "${ROOT}/.env"
+set +a
+
+if [[ ! -d "${ROOT}/node_modules" ]] || [[ ! -x "${ROOT}/services/api/.venv/bin/uvicorn" ]]; then
+  log "Installing dependencies…"
+  pnpm install --frozen-lockfile
+  uv sync --project services/api --frozen
+fi
+
+if [[ "$DO_LMS" -eq 1 ]]; then
+  if ! command -v lms >/dev/null 2>&1; then
+    die "lms CLI not found. Install LM Studio CLI or omit --with-lms."
+  fi
+  if ! lms server status 2>/dev/null | grep -qi 'running\|ON\|started'; then
+    log "Starting LM Studio server…"
+    lms server start >/dev/null 2>&1 || true
+    sleep 1
+  fi
+  MODEL_KEY="${LM_STUDIO_MODEL:-$LMS_MODEL_DEFAULT}"
+  if [[ -z "${LM_STUDIO_MODEL:-}" ]]; then
+    # Prefer an identifier that matches the installed Qwen 3.5 9B if unset.
+    if lms ls 2>/dev/null | grep -qi 'qwen3\.5-9b\|Qwen3\.5-9B'; then
+      MODEL_KEY="$(lms ls 2>/dev/null | grep -i 'qwen3\.5-9b\|Qwen3\.5-9B' | head -1 | awk '{print $1}')"
+    fi
+  fi
+  if [[ -n "$MODEL_KEY" ]]; then
+    log "Loading LM Studio model: ${MODEL_KEY}"
+    lms load "$MODEL_KEY" -y >/dev/null 2>&1 || log "Warning: could not load ${MODEL_KEY} (Folio will use deterministic fallback)."
+  else
+    log "Warning: no LM Studio model key resolved; Folio will use deterministic fallback."
+  fi
+fi
+
+start_api() {
+  if api_healthy; then
+    log "API already healthy at ${API_URL}"
+    return 0
+  fi
+  if lsof -nP -iTCP:"${API_PORT}" -sTCP:LISTEN >/dev/null 2>&1; then
+    die "Port ${API_PORT} is in use but /health is not ready."
+  fi
+  : >"$API_LOG"
+  log "Starting API on ${API_URL}…"
+  if [[ -x services/api/.venv/bin/uvicorn ]]; then
+    API_BIN=(services/api/.venv/bin/uvicorn finance_agent.api.app:app --app-dir services/api/src --host "$API_HOST" --port "$API_PORT")
+  else
+    API_BIN=(uv run --project services/api uvicorn finance_agent.api.app:app --host "$API_HOST" --port "$API_PORT")
+  fi
+  # macOS: nohup + new session so children survive the launcher.
+  nohup "${API_BIN[@]}" >>"$API_LOG" 2>&1 &
+  echo $! >"$API_PID_FILE"
+}
+
+start_ui() {
+  if ui_healthy; then
+    log "UI already healthy at ${UI_URL}"
+    return 0
+  fi
+  if lsof -nP -iTCP:"${UI_PORT}" -sTCP:LISTEN >/dev/null 2>&1; then
+    die "Port ${UI_PORT} is in use but / is not ready."
+  fi
+  : >"$UI_LOG"
+  log "Starting web UI on ${UI_URL}…"
+  nohup pnpm --filter @folio/desktop dev:browser >>"$UI_LOG" 2>&1 &
+  echo $! >"$UI_PID_FILE"
+}
+
+
+wait_for() {
+  local name="$1"
+  local check="$2"
+  local seconds="${3:-45}"
+  local i
+  for i in $(seq 1 "$seconds"); do
+    if "$check"; then
+      log "${name} ready."
+      return 0
+    fi
+    sleep 1
+  done
+  die "${name} did not become ready within ${seconds}s. See ${LOG_DIR}/"
+}
+
+start_api
+start_ui
+wait_for "API" api_healthy 45
+wait_for "UI" ui_healthy 60
+
+if [[ "$DO_RESET" -eq 1 ]]; then
+  log "Resetting Koru Studio demo seed…"
+  if [[ -x services/api/.venv/bin/python ]]; then
+    services/api/.venv/bin/python scripts/demo_control.py reset >/dev/null
+  else
+    uv run --project services/api python scripts/demo_control.py reset >/dev/null
+  fi
+  log "Koru seed ready."
+fi
+
+HEALTH="$(curl -fsS --max-time 3 "${API_URL}/health" || true)"
+CAPS="$(curl -fsS --max-time 3 "${API_URL}/v1/models/capabilities" 2>/dev/null || true)"
+
+log ""
+log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+log " Folio is ready for demo recording"
+log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+log " Open (onboarding → Koru):  ${UI_URL}/?onboarding=1"
+log " Open (workspace):          ${UI_URL}/"
+log " Open (sealed UI fixture):  ${UI_URL}/?demo=1"
+log " API health:                ${API_URL}/health"
+log " Logs:                      ${LOG_DIR}/"
+if [[ -n "$HEALTH" ]]; then
+  log " Health:                    ${HEALTH}"
+fi
+if [[ -n "$CAPS" ]]; then
+  log " Model caps:                ${CAPS}"
+fi
+log ""
+log " Recording tip: use ${UI_URL}/?onboarding=1 with a fresh browser profile"
+log " (or clear localStorage key folio:onboarded) so onboarding appears."
+log " Reset seed anytime:         ./run --reset"
+log " Stop Folio run PIDs:        ./run --stop"
+log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if [[ "$DO_ELECTRON" -eq 1 ]]; then
+  log "Launching Electron shell…"
+  pnpm --filter @folio/desktop dev:electron
+fi

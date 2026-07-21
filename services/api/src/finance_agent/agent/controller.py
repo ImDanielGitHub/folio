@@ -8,6 +8,7 @@ from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from typing import Protocol
 
+from finance_agent.agent.business_discovery import decide_business_discovery
 from finance_agent.agent.catalogue import ControllerState, validate_plan_for_intent
 from finance_agent.agent.dialogue import (
     ActiveQuestion,
@@ -23,7 +24,13 @@ from finance_agent.agent.dialogue import (
 )
 from finance_agent.agent.executor import ExecutionReceipt, FinancePlanExecutor
 from finance_agent.agent.harness import HarnessRequest, ModelHarness
-from finance_agent.agent.plan import CreateClassificationRuleAction, RecordBusinessClaimAction
+from finance_agent.agent.narrative import compose_execution_narrative
+from finance_agent.agent.plan import (
+    CreateClassificationRuleAction,
+    QuerySummaryAction,
+    QueryTransactionsAction,
+    RecordBusinessClaimAction,
+)
 from finance_agent.agent.ports import FinanceCorePort
 from finance_agent.models.base import ModelMode
 from finance_agent.models.projection import EgressReceipt, ModelReceipt, receipt_id
@@ -206,30 +213,76 @@ class FinanceAgentController:
         trace.extend(execution.state_trace)
         self._commit_explicit_claims(frame, plan, request.turn_id)
 
+        write_kinds = {
+            "create_classification_rule",
+            "record_business_claim",
+            "undo_event",
+        }
+        has_committed_write = any(
+            result.kind in write_kinds and result.status in {"completed", "no_op"}
+            for result in execution.results
+        )
+        plan_was_read = any(
+            isinstance(action, (QuerySummaryAction, QueryTransactionsAction))
+            for action in plan.actions
+        )
+
         trace.append(ControllerState.EXPLAIN)
         if self.inquiry.is_stop(request.content):
             narrative = self.inquiry.synthesise()
             narrative_receipt = None
             narrative_egress = None
         else:
-            refreshed = await self.finance_core.load_context(
-                request.workspace_id, request.thread_id
+            deterministic_narrative = compose_execution_narrative(
+                plan=plan,
+                execution=execution,
             )
-            fallback_text = (
-                f"{self.inquiry.acknowledge(request.content)} "
-                "The bounded finance work completed and its receipt is ready."
+            # Prefer evidence-backed wording for writes and deterministic_fallback —
+            # judges must see what changed, not a generic acknowledgement.
+            if outcome.source == "deterministic_fallback" or has_committed_write:
+                narrative = deterministic_narrative
+                narrative_receipt = None
+                narrative_egress = None
+            else:
+                refreshed = await self.finance_core.load_context(
+                    request.workspace_id, request.thread_id
+                )
+                narrative_outcome = await self.harness.explain(
+                    workspace_id=request.workspace_id,
+                    thread_id=request.thread_id,
+                    run_id=request.run_id,
+                    mode=request.mode,
+                    source=dict(refreshed.projection),
+                    fallback_text=deterministic_narrative,
+                )
+                narrative = narrative_outcome.text
+                narrative_receipt = narrative_outcome.model_receipt
+                narrative_egress = narrative_outcome.egress_receipt
+
+        discovery_question: str | None = None
+        if not self.inquiry.is_stop(request.content) and frame.active_question is None:
+            asked_prompts = tuple(
+                turn.content
+                for turn in self.conversations.recent_turns(request.thread_id, 12)
+                if turn.role == "agent"
             )
-            narrative_outcome = await self.harness.explain(
-                workspace_id=request.workspace_id,
-                thread_id=request.thread_id,
-                run_id=request.run_id,
-                mode=request.mode,
-                source=dict(refreshed.projection),
-                fallback_text=fallback_text,
+            discovery = decide_business_discovery(
+                content=request.content,
+                working_understanding=working_understanding,
+                has_active_question=False,
+                had_committed_write=has_committed_write,
+                plan_was_read=plan_was_read,
+                asked_at=datetime.now(UTC),
+                question_id=receipt_id("question", request.run_id, "discovery"),
+                asked_prompts=asked_prompts,
             )
-            narrative = narrative_outcome.text
-            narrative_receipt = narrative_outcome.model_receipt
-            narrative_egress = narrative_outcome.egress_receipt
+            if discovery.question is not None:
+                trace.append(ControllerState.ASK_ONE_QUESTION)
+                frame = self.inquiry.ask(frame, discovery.question)
+                self.conversations.save_frame(frame)
+                discovery_question = discovery.question.prompt
+                narrative = f"{narrative.rstrip()} {discovery.question.prompt}"
+
         model_receipts = outcome.model_receipts + (
             (narrative_receipt,) if narrative_receipt else ()
         )
@@ -242,7 +295,12 @@ class FinanceAgentController:
                 evidence_id for result in execution.results for evidence_id in result.evidence_ids
             )
         )
-        work_receipt = self._work_receipt(request.run_id, evidence_ids, trace, status="completed")
+        work_receipt = self._work_receipt(
+            request.run_id,
+            evidence_ids,
+            trace,
+            status="question" if discovery_question else "completed",
+        )
         await self.receipt_sink.commit(work_receipt)
         agent_turn = TranscriptTurn(
             turn_id=receipt_id("turn", request.run_id, "agent"),
@@ -255,7 +313,7 @@ class FinanceAgentController:
         return ControllerResult(
             run_id=request.run_id,
             narrative=narrative,
-            question=None,
+            question=discovery_question,
             plan_source=outcome.source,
             state_trace=tuple(trace),
             execution=execution,

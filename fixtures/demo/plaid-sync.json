@@ -1,0 +1,52 @@
+{
+  "account": {
+    "name": "Chase Business Checking",
+    "maskedNumber": "0000",
+    "currency": "USD"
+  },
+  "syncedAt": "2026-07-17T09:40:00-04:00",
+  "transactions": [
+    {
+      "occurredOn": "2026-07-17",
+      "description": "UBER TRIP HELP.UBER.COM",
+      "amountMinor": -1845,
+      "externalReference": "plaid_chase_uber_001",
+      "status": "posted"
+    },
+    {
+      "occurredOn": "2026-07-16",
+      "description": "STARBUCKS STORE 12345",
+      "amountMinor": -625,
+      "externalReference": "plaid_chase_sbux_001",
+      "status": "posted"
+    },
+    {
+      "occurredOn": "2026-07-15",
+      "description": "DROPBOX*ANNUAL",
+      "amountMinor": -11999,
+      "externalReference": "plaid_chase_dropbox_001",
+      "status": "posted"
+    },
+    {
+      "occurredOn": "2026-07-14",
+      "description": "UNKNOWN CARD PURCHASE",
+      "amountMinor": -4200,
+      "externalReference": "plaid_chase_unknown_001",
+      "status": "posted"
+    },
+    {
+      "occurredOn": "2026-07-13",
+      "description": "AWS.AMAZON.COM",
+      "amountMinor": -8750,
+      "externalReference": "plaid_chase_aws_001",
+      "status": "posted"
+    },
+    {
+      "occurredOn": "2026-07-12",
+      "description": "ACME CLIENT PAYMENT",
+      "amountMinor": 250000,
+      "externalReference": "plaid_chase_acme_001",
+      "status": "posted"
+    }
+  ]
+}

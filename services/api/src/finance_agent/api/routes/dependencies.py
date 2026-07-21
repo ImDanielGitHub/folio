@@ -45,6 +45,20 @@ class RouteServices(Protocol):
         end: str | None,
     ) -> Mapping[str, object]: ...
 
+    async def ingest_plaid_fixture(
+        self,
+        *,
+        payload: Mapping[str, object] | None,
+    ) -> Mapping[str, object]: ...
+
+    async def create_plaid_link_token(self) -> Mapping[str, object]: ...
+
+    async def sync_plaid(
+        self,
+        *,
+        public_token: str | None = None,
+    ) -> Mapping[str, object]: ...
+
     async def ingest_telegram_fixture(
         self,
         *,

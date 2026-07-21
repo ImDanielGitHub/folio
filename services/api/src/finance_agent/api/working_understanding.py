@@ -467,6 +467,10 @@ class WorkingUnderstandingRuntime:
         entries = retrieved_entries or self._summary_entries(summary)
         selected = list(entries)
         dropped_ids: list[str] = []
+        owner_statement_count = self.store.fetch_one(
+            "SELECT COUNT(*) AS count FROM knowledge_owner_statements WHERE workspace_id = ?",
+            (workspace_id,),
+        )
         packet: dict[str, object] = {
             "summaryRevision": summary.revision,
             "summaryContentHash": summary.content_hash,
@@ -474,6 +478,10 @@ class WorkingUnderstandingRuntime:
             "taskScope": task_scope,
             "retrievalReceiptId": retrieval.receipt_id,
             "entries": selected,
+            "totalByAxis": summary.payload.get("totalByAxis") or {},
+            "ownerStatementCount": int(owner_statement_count["count"])
+            if owner_statement_count is not None
+            else 0,
             "highestValueQuestion": summary.payload.get("highestValueQuestion"),
             "openContradictionCount": len(
                 summary.payload.get("openContradictions", [])  # type: ignore[arg-type]

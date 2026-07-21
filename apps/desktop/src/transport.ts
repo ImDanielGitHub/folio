@@ -14,6 +14,9 @@ export type BackendHealth = {
   akahuReady: boolean;
   akahuStatus: "configured" | "unconfigured";
   akahuDetail: string;
+  plaidReady: boolean;
+  plaidStatus: "configured" | "unconfigured";
+  plaidDetail: string;
 };
 
 const LOOPBACK_API_URL = window.financeDesktop?.apiBase ?? "http://127.0.0.1:8787";
@@ -64,6 +67,8 @@ export async function probeBackend(): Promise<BackendHealth> {
     const providers = (connections.providers ?? {}) as Record<string, unknown>;
     const akahu = (providers.akahu ?? {}) as Record<string, unknown>;
     const akahuStatus = akahu.status === "configured" ? "configured" : "unconfigured";
+    const plaid = (providers.plaid ?? {}) as Record<string, unknown>;
+    const plaidStatus = plaid.status === "configured" ? "configured" : "unconfigured";
     return {
       mode: "live",
       label: "Local service connected",
@@ -76,6 +81,9 @@ export async function probeBackend(): Promise<BackendHealth> {
       akahuReady: akahuStatus === "configured",
       akahuStatus,
       akahuDetail: typeof akahu.detail === "string" ? akahu.detail : "Live Akahu is not configured for this process.",
+      plaidReady: plaidStatus === "configured",
+      plaidStatus,
+      plaidDetail: typeof plaid.detail === "string" ? plaid.detail : "Live Plaid is not configured for this process.",
     };
   } catch {
     return {
@@ -92,6 +100,9 @@ export async function probeBackend(): Promise<BackendHealth> {
       akahuReady: false,
       akahuStatus: "unconfigured",
       akahuDetail: "Start the local Folio service to inspect Akahu configuration.",
+      plaidReady: false,
+      plaidStatus: "unconfigured",
+      plaidDetail: "Start the local Folio service to inspect Plaid configuration.",
     };
   }
 }
@@ -130,6 +141,7 @@ export async function postTurn(
   content: string,
   mode: "local" | "hybrid" | "cloud",
 ): Promise<{ runId: string }> {
+  // Local LM Studio turns routinely take 30–120s; keep the request alive for demo recording.
   return requestJson(`/v1/threads/${threadId}/turns`, {
     method: "POST",
     body: JSON.stringify({
@@ -138,7 +150,7 @@ export async function postTurn(
       content,
       mode,
     }),
-  });
+  }, 180_000);
 }
 
 export async function undoEvent(eventId: string): Promise<Record<string, unknown>> {
@@ -210,6 +222,35 @@ export async function syncAkahuLive(): Promise<Record<string, unknown>> {
     method: "POST",
     body: JSON.stringify({}),
   }, 30000);
+}
+
+export type PlaidFixturePayload = {
+  account?: { name: string; maskedNumber?: string; currency?: "USD" };
+  syncedAt?: string;
+  transactions?: Array<Record<string, unknown>>;
+};
+
+export async function ingestPlaidFixture(
+  payload: PlaidFixturePayload = {},
+): Promise<Record<string, unknown>> {
+  return requestJson("/v1/ingest/plaid-fixture", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }, 8000);
+}
+
+export async function syncPlaidLive(publicToken?: string): Promise<Record<string, unknown>> {
+  return requestJson("/v1/connectors/plaid/sync", {
+    method: "POST",
+    body: JSON.stringify(publicToken ? { publicToken } : {}),
+  }, 30000);
+}
+
+export async function createPlaidLinkToken(): Promise<Record<string, unknown>> {
+  return requestJson("/v1/connectors/plaid/link-token", {
+    method: "POST",
+    body: JSON.stringify({}),
+  }, 12000);
 }
 
 export async function loadConnectionCapabilities(): Promise<Record<string, unknown>> {
