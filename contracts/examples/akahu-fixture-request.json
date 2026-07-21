@@ -1,0 +1,17 @@
+{
+  "account": {
+    "name": "ANZ Everyday",
+    "maskedNumber": "..4291",
+    "currency": "NZD"
+  },
+  "syncedAt": "2026-07-17T09:40:00+12:00",
+  "transactions": [
+    {
+      "occurredOn": "2026-07-17",
+      "description": "SPARK MOBILE NZ",
+      "amountMinor": -129900,
+      "externalReference": "akahu_koru_phone_001",
+      "status": "posted"
+    }
+  ]
+}

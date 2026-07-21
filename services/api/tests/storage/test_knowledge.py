@@ -553,7 +553,7 @@ def test_knowledge_migration_and_fts_survive_demo_recreate(tmp_path: Path) -> No
     assert [
         int(row["version"])
         for row in store.fetch_all("SELECT version FROM schema_migrations ORDER BY version")
-    ] == [1, 2, 3, 4, 5]
+    ] == [1, 2, 3, 4, 5, 6]
     assert (
         store.fetch_one(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'knowledge_fts'"

@@ -1,29 +1,29 @@
 :root {
   color-scheme: dark;
-  font-family: "IBM Plex Sans", "Aptos", "SF Pro Text", system-ui, sans-serif;
+  font-family: "Instrument Sans", "Aptos", "SF Pro Text", system-ui, sans-serif;
   font-synthesis: none;
-  --bg: #10110f;
-  --rail: #0c0d0b;
-  --thread: #131411;
-  --canvas-bg: #0e0f0d;
-  --panel: #191a16;
-  --panel-raised: #1e1f1a;
-  --panel-soft: #161713;
-  --text: #eee9e1;
-  --text-soft: #c8c2b8;
-  --muted: #96958b;
-  --quiet: #6f7169;
-  --line: rgba(238, 233, 225, 0.09);
-  --line-strong: rgba(238, 233, 225, 0.16);
-  --accent: #c66b46;
-  --accent-hover: #d47a54;
-  --accent-soft: rgba(198, 107, 70, 0.12);
-  --green: #a4b38a;
-  --green-soft: rgba(164, 179, 138, 0.12);
-  --amber: #d0a064;
-  --amber-soft: rgba(208, 160, 100, 0.12);
-  --danger: #d47c6d;
-  --shadow: 0 24px 80px rgba(0, 0, 0, 0.38);
+  --bg: #0d0e0e;
+  --rail: #101111;
+  --thread: #161716;
+  --canvas-bg: #111212;
+  --panel: #1a1b1a;
+  --panel-raised: #20211f;
+  --panel-soft: #1d1e1c;
+  --text: #f2efe9;
+  --text-soft: #ddd7ce;
+  --muted: #aaa7a1;
+  --quiet: #77766f;
+  --line: rgba(242, 239, 233, 0.1);
+  --line-strong: rgba(242, 239, 233, 0.18);
+  --accent: #d98558;
+  --accent-hover: #e3976b;
+  --accent-soft: rgba(217, 133, 88, 0.16);
+  --green: #79a88c;
+  --green-soft: rgba(121, 168, 140, 0.16);
+  --amber: #c4a35a;
+  --amber-soft: rgba(196, 163, 90, 0.16);
+  --danger: #c46b5a;
+  --shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
   --radius-xs: 6px;
   --radius-sm: 9px;
   --radius-md: 13px;
@@ -79,12 +79,12 @@ summary {
 }
 
 :focus-visible {
-  outline: 2px solid #e1a184;
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
 ::selection {
-  background: rgba(198, 107, 70, 0.3);
+  background: rgba(217, 133, 88, 0.3);
 }
 
 ::-webkit-scrollbar {
@@ -3607,34 +3607,8 @@ summary {
   }
 }
 
-/* Paper-faithful light product surface.
-   Structure follows the live Folio artboards; the user-selected product theme is light. */
-:root {
-  color-scheme: light;
-  font-family: "Instrument Sans", "Aptos", "SF Pro Text", system-ui, sans-serif;
-  --bg: #f4f4f1;
-  --rail: #efefeb;
-  --thread: #fbfbf9;
-  --canvas-bg: #f1f1ee;
-  --panel: #ffffff;
-  --panel-raised: #ffffff;
-  --panel-soft: #f6f6f3;
-  --text: #181816;
-  --text-soft: #41403b;
-  --muted: #68665f;
-  --quiet: #8b8880;
-  --line: rgba(24, 24, 22, 0.1);
-  --line-strong: rgba(24, 24, 22, 0.18);
-  --accent: #c96642;
-  --accent-hover: #b95735;
-  --accent-soft: rgba(201, 102, 66, 0.09);
-  --green: #397756;
-  --green-soft: rgba(57, 119, 86, 0.09);
-  --amber: #9b6b27;
-  --amber-soft: rgba(155, 107, 39, 0.09);
-  --danger: #a5483d;
-  --shadow: 0 24px 70px rgba(25, 25, 20, 0.12);
-}
+/* Paper-faithful dark product surface.
+   Structure follows the live Folio artboards; the user-selected product theme is dark. */
 
 html,
 body,
@@ -3645,12 +3619,12 @@ body,
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(24, 24, 22, 0.16);
+  background: rgba(242, 239, 233, 0.16);
   background-clip: padding-box;
 }
 
 :focus-visible {
-  outline-color: #b95c3b;
+  outline-color: var(--accent);
 }
 
 .rail {
@@ -3670,15 +3644,15 @@ body,
 
 .rail button:hover,
 .rail button.is-active {
-  background: #ffffff;
+  background: var(--panel-raised);
   color: var(--text);
-  box-shadow: 0 1px 0 rgba(24, 24, 22, 0.04);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .rail .brand-button,
 .rail .brand-button:hover,
 .rail .brand-button.is-active {
-  border-color: rgba(201, 102, 66, 0.5);
+  border-color: rgba(217, 133, 88, 0.52);
   background: transparent;
   color: var(--accent);
 }
@@ -3693,7 +3667,7 @@ body,
   flex-basis: 64px;
   padding-inline: 30px;
   border-color: var(--line);
-  background: rgba(251, 251, 249, 0.97);
+  background: rgba(22, 23, 22, 0.97);
 }
 
 .workspace-identity,
@@ -3724,19 +3698,19 @@ body,
 .canvas-tool-button:hover,
 .icon-close-button:hover {
   border-color: var(--line);
-  background: #ffffff;
+  background: var(--panel-raised);
   color: var(--text);
 }
 
 .quiet-close-button {
   border-color: var(--line);
-  background: #ffffff;
+  background: var(--panel-raised);
 }
 
 .degraded-banner {
-  border-color: rgba(155, 107, 39, 0.2);
-  background: #fff9ec;
-  color: #5d4b2e;
+  border-color: rgba(196, 163, 90, 0.24);
+  background: var(--amber-soft);
+  color: #e2c681;
 }
 
 .conversation-column {
@@ -3759,7 +3733,7 @@ body,
 }
 
 .agent-avatar {
-  border-color: rgba(201, 102, 66, 0.45);
+  border-color: rgba(217, 133, 88, 0.48);
   background: transparent;
   color: var(--accent);
 }
@@ -3823,7 +3797,7 @@ body,
   padding: 17px 20px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: #f1f0ed;
+  background: var(--panel-raised);
 }
 
 .appearance-question .message-content > p {
@@ -3860,7 +3834,7 @@ body,
 }
 
 .progress-bar {
-  background: rgba(24, 24, 22, 0.08);
+  background: rgba(242, 239, 233, 0.08);
 }
 
 .composer-area {
@@ -3870,7 +3844,7 @@ body,
 
 .composer-area::before {
   border-color: transparent;
-  background: linear-gradient(to bottom, rgba(251, 251, 249, 0), rgba(251, 251, 249, 0.96));
+  background: linear-gradient(to bottom, rgba(22, 23, 22, 0), rgba(22, 23, 22, 0.96));
 }
 
 .suggestion-row {
@@ -3881,13 +3855,13 @@ body,
   padding: 15px 16px 11px;
   border-color: var(--line-strong);
   border-radius: 16px;
-  background: #ffffff;
-  box-shadow: 0 12px 34px rgba(24, 24, 22, 0.08);
+  background: var(--panel-raised);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
 }
 
 .composer:focus-within {
-  border-color: rgba(201, 102, 66, 0.55);
-  box-shadow: 0 12px 34px rgba(24, 24, 22, 0.08), 0 0 0 2px rgba(201, 102, 66, 0.08);
+  border-color: rgba(217, 133, 88, 0.58);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.3), 0 0 0 2px rgba(217, 133, 88, 0.1);
 }
 
 .composer textarea {
@@ -3901,7 +3875,7 @@ body,
 }
 
 .stop-button {
-  background: #ecebe7;
+  background: #2a2b28;
   color: var(--text-soft);
 }
 
@@ -3916,13 +3890,13 @@ body,
 }
 
 .canvas-toolbar {
-  background: rgba(247, 247, 244, 0.98);
+  background: rgba(17, 18, 18, 0.98);
 }
 
 .surface-menu,
 .toast {
   border-color: var(--line);
-  background: #ffffff;
+  background: var(--panel-raised);
   color: var(--text-soft);
   box-shadow: var(--shadow);
 }
@@ -3941,8 +3915,8 @@ body,
   padding: clamp(30px, 4vw, 56px);
   border-color: var(--line);
   border-radius: 14px;
-  background: #ffffff;
-  box-shadow: 0 20px 50px rgba(24, 24, 22, 0.07);
+  background: var(--panel);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.24);
 }
 
 .surface h1 {
@@ -3960,7 +3934,7 @@ body,
 
 .metric-block,
 .table-block th {
-  background: #ffffff;
+  background: var(--panel);
 }
 
 .metric-value {
@@ -3983,11 +3957,11 @@ body,
 .finding-block:hover,
 .scenario-row,
 .change-row {
-  background: #ffffff;
+  background: var(--panel-raised);
 }
 
 .chart-grid {
-  stroke: rgba(24, 24, 22, 0.08);
+  stroke: rgba(242, 239, 233, 0.08);
 }
 
 .cash-chart text {
@@ -3998,12 +3972,12 @@ body,
 .classification,
 .table-block tfoot td,
 .technical-identifier-group {
-  background: rgba(24, 24, 22, 0.035);
+  background: rgba(242, 239, 233, 0.035);
 }
 
 .button:hover {
-  border-color: rgba(24, 24, 22, 0.26);
-  background: #f2f1ed;
+  border-color: rgba(242, 239, 233, 0.24);
+  background: var(--panel-raised);
 }
 
 .drawer-backdrop {
@@ -4013,7 +3987,7 @@ body,
 .context-drawer,
 .drawer-footer {
   border-color: var(--line);
-  background: #ffffff;
+  background: var(--panel);
 }
 
 .drawer-sources {
@@ -4063,29 +4037,29 @@ body,
 .source-transcript-quote,
 .source-file-preview,
 .source-note-preview {
-  background: #ffffff;
+  background: var(--panel-raised);
 }
 
 .onboarding-layer {
   padding: 32px;
-  background: #ecece8;
+  background: #0b0c0c;
 }
 
 .onboarding-shell {
   min-height: min(680px, calc(100dvh - 64px));
   border-color: var(--line);
-  background: #ffffff;
-  box-shadow: 0 24px 80px rgba(24, 24, 22, 0.1);
+  background: var(--panel);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
 }
 
 .onboarding-topbar {
   min-height: 64px;
   padding-inline: 26px;
-  background: #fbfbf9;
+  background: var(--thread);
 }
 
 .onboarding-brand > span {
-  border: 1px solid rgba(201, 102, 66, 0.4);
+  border: 1px solid rgba(217, 133, 88, 0.44);
   background: transparent;
   color: var(--accent);
 }
@@ -4096,7 +4070,7 @@ body,
 }
 
 .onboarding-agent-mark {
-  border-color: rgba(201, 102, 66, 0.4);
+  border-color: rgba(217, 133, 88, 0.44);
   background: transparent;
   color: var(--accent);
 }
@@ -4116,8 +4090,24 @@ body,
 
 .choice-card.is-selected,
 .privacy-choice.is-selected {
-  border-color: rgba(201, 102, 66, 0.48);
+  border-color: rgba(217, 133, 88, 0.5);
   background: var(--accent-soft);
+}
+
+.choice-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.onboarding-provider-callout {
+  align-items: flex-start;
+}
+
+.onboarding-market-note {
+  margin: 0;
+  color: var(--quiet);
+  font-size: 10px;
+  line-height: 1.55;
 }
 
 .onboarding-entry-actions > span {
@@ -4149,13 +4139,13 @@ body,
 
   .mobile-tabs {
     border-color: var(--line);
-    background: #f5f5f2;
+    background: var(--panel-soft);
   }
 
   .mobile-tabs button[aria-selected="true"] {
-    background: #ffffff;
+    background: var(--panel-raised);
     color: var(--text);
-    box-shadow: 0 1px 0 rgba(24, 24, 22, 0.05);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
   }
 }
 
@@ -4197,7 +4187,7 @@ body,
 
   .onboarding-layer {
     padding: 0;
-    background: #ffffff;
+    background: var(--panel);
   }
 
   .onboarding-shell {

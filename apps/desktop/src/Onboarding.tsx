@@ -4,11 +4,11 @@ import type { BackendHealth } from "./transport";
 
 type OnboardingProps = {
   backend: BackendHealth;
-  onComplete: (sourceChoice: "demo" | "csv", file: File | null) => Promise<void>;
+  onComplete: (sourceChoice: "demo" | "akahu" | "csv", file: File | null) => Promise<void>;
 };
 
 export function Onboarding({ backend, onComplete }: OnboardingProps) {
-  const [sourceChoice, setSourceChoice] = useState<"demo" | "csv">("demo");
+  const [sourceChoice, setSourceChoice] = useState<"demo" | "akahu" | "csv">("demo");
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -85,6 +85,23 @@ export function Onboarding({ backend, onComplete }: OnboardingProps) {
 
                   <button
                     type="button"
+                    className={`choice-card ${sourceChoice === "akahu" ? "is-selected" : ""}`}
+                    aria-pressed={sourceChoice === "akahu"}
+                    disabled={backend.mode !== "live"}
+                    onClick={() => setSourceChoice("akahu")}
+                  >
+                    <span className="choice-icon"><SourceIcon /></span>
+                    <span>
+                      <strong>{backend.akahuReady ? "Sync Akahu read-only" : "Preview an Akahu import"}</strong>
+                      <small>{backend.akahuReady
+                        ? "Bring settled New Zealand bank transactions into Folio through this computer."
+                        : "Process a sealed, read-only New Zealand bank feed through the real source and evidence pipeline."}</small>
+                    </span>
+                    <i aria-hidden="true">{sourceChoice === "akahu" ? <CheckIcon size={14} /> : null}</i>
+                  </button>
+
+                  <button
+                    type="button"
                     className={`choice-card ${sourceChoice === "csv" ? "is-selected" : ""}`}
                     aria-pressed={sourceChoice === "csv"}
                     onClick={() => setSourceChoice("csv")}
@@ -108,6 +125,17 @@ export function Onboarding({ backend, onComplete }: OnboardingProps) {
                       : "Required columns: source_row_id, account_id, occurred_on, description, amount_minor, currency, status, external_reference."}</small>
                   </label>
                 ) : null}
+
+                {sourceChoice === "akahu" ? (
+                  <div className="onboarding-callout onboarding-provider-callout">
+                    <SourceIcon size={16} />
+                    <p>{backend.akahuReady
+                      ? <><strong>Akahu is configured.</strong> Folio will read accounts and settled transactions only. It cannot make payments or change your bank.</>
+                      : <><strong>Judge-safe connector proof.</strong> This uses six synthetic Akahu-shaped transactions, makes no bank request, and records that no live sync was attempted. Add a Personal App or accredited OAuth connection to use a real account.</>}</p>
+                  </div>
+                ) : null}
+
+                <p className="onboarding-market-note">Plaid Hosted Link is intended for supported US, Canadian, UK and European institutions. Plaid does not support New Zealand banks, so Folio routes New Zealand owners to Akahu or local statements.</p>
 
                 <div className="onboarding-callout onboarding-privacy-callout">
                   <PrivacyIcon size={16} />
@@ -134,7 +162,13 @@ export function Onboarding({ backend, onComplete }: OnboardingProps) {
               disabled={submitting || (sourceChoice === "csv" && !csvFile)}
               onClick={() => void handleContinue()}
             >
-              {submitting ? "Preparing locally…" : sourceChoice === "demo" ? "Open Koru Studio" : "Import and continue"}<ArrowIcon size={15} />
+              {submitting
+                ? "Preparing locally…"
+                : sourceChoice === "demo"
+                  ? "Open Koru Studio"
+                  : sourceChoice === "akahu"
+                    ? backend.akahuReady ? "Sync Akahu read-only" : "Process sealed Akahu feed"
+                    : "Import and continue"}<ArrowIcon size={15} />
             </button>
           </footer>
         </main>

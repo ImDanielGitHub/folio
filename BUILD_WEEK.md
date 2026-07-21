@@ -1,30 +1,67 @@
-# OpenAI Build Week boundary record
+# OpenAI Build Week provenance
 
-**Boundary date:** 17 July 2026, Pacific/Auckland  
-**Repository at bootstrap start:** new Git repository on `main`, no commits, with only `BUILD_CONTRACT.md` untracked  
-**Product identity:** Standalone Finance Agent (working product name), a new repository and user-facing product
+**Submission period:** 13–21 July 2026 (PDT)
+**Repository boundary:** new standalone Git history; first commit 17 July 2026 NZST
+**Product:** Folio
+**Track:** Work & Productivity (draft; not submitted)
 
 ## Baseline
 
-`BUILD_CONTRACT.md` is product and architecture planning. The coordinator bootstrap commit creates contracts, synthetic fixtures, empty lane boundaries, manifests and validation tooling. Neither document is runtime proof that the product loop works.
+Folio did not exist as a working product before this repository. The first two commits contain the written build contract, contracts, synthetic fixtures, package manifests and bootstrap validation. They do not claim a running finance product.
 
-No earlier product code, branding, proprietary prompts, assets or compiled output is part of this repository baseline. The new implementation must remain auditable as commits made after this boundary.
+No Hermes or Bionic product source, branding, prompts, assets, database, minified bundles or repository history was imported. Research into those systems informed independently authored architectural decisions recorded in `SOURCE_REUSE_MAP.md` and `CLEAN_ROOM.md`.
 
-## Post-boundary evidence to record
+## Dated implementation history
 
-For every implementation lane and the final integration, record:
+| Commit | Time (NZST) | New work |
+|---|---|---|
+| `c138aa1` | 17 Jul 19:11 | Build contract and clean standalone boundary |
+| `77fc2b8` | 17 Jul 19:12 | Contracts, synthetic fixtures and bootstrap scaffold |
+| `b85c90c` | 17 Jul 20:11 | Deterministic Koru finance core, events, Daily Close and artefacts |
+| `00e1ee0` | 17 Jul 20:16 | Bounded finance agent harness, adapters, API and connector boundaries |
+| `3022be1` | 18 Jul 00:47 | Durable working understanding, local-model resilience, evals and continuity |
+| `48984ee` | 18 Jul 00:48 | Chat-first Folio desktop, dynamic canvas, drawers, onboarding and live transport |
 
-- exact commit SHA and parent bootstrap SHA;
-- files owned and changed;
-- test/build command and full pass/fail result;
-- local runtime evidence, separately from source and test evidence;
-- normalised golden-demo hashes and any intentionally variable fields;
-- local-model capability/model identifier and result;
-- cloud provider/model and egress receipt if credentials and access are available;
-- Telegram fixture proof, and separately any optional real test-bot round trip.
+The next integration commit records the light Paper-aligned product surface, production-relative Vite assets, temporal/retrieval correction, current documentation and fresh acceptance proof.
 
-The final submission must distinguish planning, bootstrap/config, implementation, tests, local runtime and any external provider state. Five clean deterministic demo runs and the recorded vertical slice remain later integration gates.
+## What Codex and GPT-5.6 did
 
-## Eligibility gate
+The primary Codex task used GPT-5.6 for:
 
-Build Week rules and submission eligibility are time-sensitive external facts. They must be rechecked from the current official source before submission. This file records provenance and proof boundaries; it does not assert eligibility or submission acceptance.
+- broad product and related-work research;
+- clean-room analysis of Hermes Finance, LM Studio/Bionic principles and current local-model techniques;
+- product specification and adversarial review;
+- parallel implementation of the deterministic finance core, agent/API runtime and desktop experience;
+- integration recovery after a worker/worktree failure;
+- test generation, long-conversation retrieval debugging and local-model adapter repair;
+- browser-based visual QA and Devpost draft preparation.
+
+Daniel set the product direction, corrected the scope and interface repeatedly, rejected the early bright/control-panel and dark/permanent-split interpretations, and required the final chat-first light experience with hidden deterministic machinery.
+
+The repository also contains an optional OpenAI Responses API adapter configured for `gpt-5.6`. A live cloud response must be recorded separately before the runtime itself is described as live-verified.
+
+## Proof levels
+
+| Level | Evidence |
+|---|---|
+| Source | Dated commits and clean standalone history |
+| Contract | Twelve JSON Schema examples plus exact fixture arithmetic, IDs, digests and event order |
+| Tests | Python suite, Ruff, MyPy and TypeScript checks |
+| Build | Electron main/preload TypeScript and Vite production renderer |
+| Deterministic runtime | Reset, Daily Close, conversation correction, cash scenario, Undo and owner-pack API flow |
+| Harness | Offline malformed-plan and narrative-guard evals |
+| Local model | Real LM Studio/Qwen transport smoke; full live four-case run remains a separate optional measurement |
+| Visual runtime | Internal-browser desktop/mobile and interaction captures, recorded in `PROTOTYPE_RECEIPT.md` |
+| External state | Devpost draft only; no final submission, deployment or public video |
+
+## Submission gates still outside repository proof
+
+- effective public licence or a private repository shared with the judging accounts;
+- stable repository URL;
+- judge-ready package or hosted test surface;
+- public YouTube video under three minutes with voiceover;
+- the actual primary `/feedback` Session ID;
+- Daniel's legal submitter type and country fields;
+- final Devpost review and submit action.
+
+Do not infer any of these from local source or passing tests.

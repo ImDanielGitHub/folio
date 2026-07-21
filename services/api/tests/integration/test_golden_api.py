@@ -64,6 +64,35 @@ async def test_real_golden_api_flow_is_local_exact_and_reversible(tmp_path: Path
         assert reset.status_code == 200
         assert reset.json()["rowCount"] == 10
 
+        akahu = await client.post("/v1/ingest/akahu-fixture", json={})
+        assert akahu.status_code == 200
+        assert akahu.json()["rowCount"] == 6
+        assert akahu.json()["liveSyncAttempted"] is False
+        akahu_again = await client.post("/v1/ingest/akahu-fixture", json={})
+        assert akahu_again.status_code == 200
+        assert akahu_again.json()["status"] == "deduplicated"
+        akahu_close = await client.post(
+            "/v1/jobs/daily-close",
+            json={
+                "workspaceId": "ws_koru_studio",
+                "idempotencyKey": "akahu-fixture-close",
+            },
+        )
+        assert akahu_close.status_code == 200
+        akahu_snapshot = (
+            await client.get("/v1/workspaces/ws_koru_studio/snapshot")
+        ).json()
+        assert any(
+            source["sourceType"] == "akahu_fixture"
+            for source in akahu_snapshot["sources"]
+        )
+
+        # Restore the stable ten-row accounting baseline after connector proof.
+        reset = await client.post(
+            "/v1/demo/reset", json={"workspaceId": "ws_koru_studio"}
+        )
+        assert reset.status_code == 200
+
         close = await client.post(
             "/v1/jobs/daily-close",
             json={

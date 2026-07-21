@@ -32,6 +32,7 @@ import {
   StopIcon,
 } from "./icons";
 import {
+  ingestAkahuFixture,
   ingestTelegramFixture,
   importCsv,
   loadSnapshot,
@@ -41,6 +42,7 @@ import {
   readRunEvents,
   resetDemo,
   runDailyClose,
+  syncAkahuLive,
   undoEvent,
   type BackendHealth,
 } from "./transport";
@@ -64,6 +66,9 @@ const initialBackend: BackendHealth = {
   lmStudioStatus: "checking",
   cloudReady: false,
   cloudCredentialState: "absent",
+  akahuReady: false,
+  akahuStatus: "unconfigured",
+  akahuDetail: "Checking local Akahu configuration…",
 };
 
 const nowIso = () => new Date().toISOString();
@@ -227,6 +232,9 @@ export function App() {
         lmStudioStatus: "not checked",
         cloudReady: false,
         cloudCredentialState: "absent",
+        akahuReady: false,
+        akahuStatus: "unconfigured",
+        akahuDetail: "The sealed demo makes no Akahu request.",
       });
       return () => { active = false; };
     }
@@ -273,19 +281,32 @@ export function App() {
     }
   }, [turns, running]);
 
-  const completeOnboarding = async (sourceChoice: "demo" | "csv", csvFile: File | null): Promise<void> => {
+  const completeOnboarding = async (sourceChoice: "demo" | "akahu" | "csv", csvFile: File | null): Promise<void> => {
     if (backend.mode === "live") {
       try {
         if (sourceChoice === "csv" && csvFile) {
           await importCsv(csvFile);
           const close = await runDailyClose();
           await readRunEvents(close.runId);
+        } else if (sourceChoice === "akahu") {
+          if (backend.akahuReady) {
+            await syncAkahuLive();
+          } else {
+            await resetDemo();
+            await ingestAkahuFixture();
+          }
+          const close = await runDailyClose();
+          await readRunEvents(close.runId);
         }
         applySnapshot(await loadSnapshot("ws_koru_studio"));
       } catch {
         throw new Error(sourceChoice === "csv"
-          ? "The local service could not commit this import. Use the exact Folio CSV template, then try again; a repeated import is deduplicated."
-          : "The local service could not open this workspace. Keep this screen open and try again.");
+          ? "The local service could not commit this statement. Check its headings and amounts, then try again; a repeated import is deduplicated."
+          : sourceChoice === "akahu"
+            ? backend.akahuReady
+              ? "Akahu could not be read. Folio preserved the existing workspace; check the process credentials and connection, then try again."
+              : "The sealed Akahu feed could not be committed. No live bank request was made and the existing workspace was preserved."
+            : "The local service could not open this workspace. Keep this screen open and try again.");
       }
       try {
         localStorage.setItem("folio:onboarded", "yes");
@@ -295,14 +316,18 @@ export function App() {
       setShowOnboarding(false);
       showToast(sourceChoice === "csv" && csvFile
         ? `${csvFile.name} was imported and Folio opened the most useful next question.`
-        : "Koru Studio is ready. Folio opened the most useful next question.");
+        : sourceChoice === "akahu"
+          ? backend.akahuReady
+            ? "Akahu settled transactions were synchronised read-only and Folio refreshed its current picture."
+            : "The sealed Akahu feed was processed locally. No live sync was attempted."
+          : "Koru Studio is ready. Folio opened the most useful next question.");
       return;
     }
     if (backend.mode !== "fixture") {
       throw new Error("Folio could not verify a ready local workspace. Nothing was saved or substituted; keep this setup open and try again when the local service is available.");
     }
-    if (sourceChoice === "csv") {
-      throw new Error("Start the local Folio service before importing a CSV, or go back and choose the sealed Koru Studio demo.");
+    if (sourceChoice !== "demo") {
+      throw new Error("Start the local Folio service before importing a statement or connector fixture, or choose the sealed Koru Studio demo.");
     }
     try {
       localStorage.setItem("folio:onboarded", "yes");

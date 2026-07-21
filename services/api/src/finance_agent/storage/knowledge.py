@@ -20,8 +20,8 @@ from typing import cast
 
 from .store import SQLiteStore, canonical_json
 
-SUMMARY_QUERY_VERSION = "working-knowledge-summary-v1"
-RETRIEVAL_QUERY_VERSION = "working-knowledge-fts-v1"
+SUMMARY_QUERY_VERSION = "working-knowledge-summary-v2-temporal"
+RETRIEVAL_QUERY_VERSION = "working-knowledge-fts-v3-temporal-balanced"
 _TASK_SCOPE_PATTERN = re.compile(r"^[a-z][a-z0-9_.-]{0,63}$")
 _PREDICATE_PATTERN = re.compile(r"^[a-z][a-z0-9_.-]{0,95}$")
 _SEARCH_TOKEN_PATTERN = re.compile(r"[^\W_]+", re.UNICODE)
@@ -1109,8 +1109,13 @@ class SQLiteKnowledgeStore:
                   ON object_entity.entity_id = fact.object_entity_id
                 WHERE fact.workspace_id = ?
                   AND status.status = 'active'
-                  AND COALESCE(fact.valid_from, '0000-01-01') <= ?
-                  AND COALESCE(fact.valid_until, '9999-12-31') >= ?
+                  AND (
+                      fact.source_kind = 'owner_turn'
+                      OR (
+                          COALESCE(fact.valid_from, '0000-01-01') <= ?
+                          AND COALESCE(fact.valid_until, '9999-12-31') >= ?
+                      )
+                  )
                 ORDER BY fact.question_axis, fact.recorded_at DESC, fact.fact_id
                 """,
                 (workspace_id, as_of_text, as_of_text),
@@ -1314,6 +1319,13 @@ class SQLiteKnowledgeStore:
             self._ensure_workspace(connection, workspace_id)
             rows: list[sqlite3.Row] = []
             if expression is not None:
+                # Raw owner turns are deliberately retained because they preserve nuance that
+                # the structured compiler may not yet understand.  In a long conversation,
+                # however, many similar turns can occupy every FTS result and crowd out the
+                # active facts that the compiler has already validated and superseded.  Fetch a
+                # wider candidate set, then balance structured records with owner statements
+                # below.  This keeps both the owner's wording and the current business picture.
+                candidate_limit = min(50, limit * 4)
                 rows = list(
                     connection.execute(
                         """
@@ -1372,8 +1384,13 @@ class SQLiteKnowledgeStore:
                            OR (
                                 (status.status = 'active'
                                   OR (? = 1 AND status.status = 'candidate'))
-                                AND COALESCE(fact.valid_from, '0000-01-01') <= ?
-                                AND COALESCE(fact.valid_until, '9999-12-31') >= ?
+                                AND (
+                                    fact.source_kind = 'owner_turn'
+                                    OR (
+                                        COALESCE(fact.valid_from, '0000-01-01') <= ?
+                                        AND COALESCE(fact.valid_until, '9999-12-31') >= ?
+                                    )
+                                )
                            )
                         ORDER BY ranked.score, ranked.record_type, ranked.record_id
                         LIMIT ?
@@ -1386,7 +1403,7 @@ class SQLiteKnowledgeStore:
                             int(include_candidates),
                             as_of_text,
                             as_of_text,
-                            limit,
+                            candidate_limit,
                         ),
                     ).fetchall()
                 )
@@ -1444,11 +1461,32 @@ class SQLiteKnowledgeStore:
                         status_event_id=status_event_id,
                     )
                 )
+            structured_budget = max(1, (limit * 3 + 4) // 5)
+            owner_budget = limit - structured_budget
+            structured_hits = [
+                hit for hit in ranked_hits if hit.record_type != "owner_statement"
+            ][:structured_budget]
+            owner_hits = [
+                hit for hit in ranked_hits if hit.record_type == "owner_statement"
+            ][:owner_budget]
+            selected_ids = {hit.record_id for hit in (*structured_hits, *owner_hits)}
+            balanced_hits = [hit for hit in ranked_hits if hit.record_id in selected_ids]
+            if len(balanced_hits) < limit:
+                for hit in ranked_hits:
+                    if hit.record_id in selected_ids:
+                        continue
+                    balanced_hits.append(hit)
+                    selected_ids.add(hit.record_id)
+                    if len(balanced_hits) == limit:
+                        break
+
             hits: list[KnowledgeHit] = []
-            dropped_hits: list[KnowledgeHit] = []
+            dropped_hits: list[KnowledgeHit] = [
+                hit for hit in ranked_hits if hit.record_id not in selected_ids
+            ]
             packet_parts: list[str] = []
             packet_characters = 0
-            for hit in ranked_hits:
+            for hit in balanced_hits:
                 packet_part = f"[{hit.record_type}:{hit.record_id}] {hit.title}\n{hit.excerpt}"
                 separator_characters = 2 if packet_parts else 0
                 proposed_characters = packet_characters + separator_characters + len(packet_part)

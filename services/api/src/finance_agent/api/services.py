@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import asyncio
+import csv
 import hashlib
+import io
 import json
 import tempfile
 from collections.abc import Mapping, Sequence
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from finance_agent.agent.controller import (
     FinanceAgentController,
@@ -37,6 +40,13 @@ from finance_agent.agent.ports import FinanceContext, FinanceServiceResult
 from finance_agent.api.routes import ArtifactPayload
 from finance_agent.api.working_understanding import WorkingUnderstandingRuntime
 from finance_agent.connectors import TelegramConfig, TelegramFixtureIngestor
+from finance_agent.connectors.akahu import (
+    AkahuReadOnlyAdapter,
+    AkahuTransaction,
+    normalise_accounts,
+    normalise_transactions,
+)
+from finance_agent.connectors.base import ConnectorError
 from finance_agent.finance import FinanceEngine, FinanceStateError, FinanceTotals
 from finance_agent.finance.service import THREAD_ID, WORKSPACE_ID
 from finance_agent.finance.surfaces import (
@@ -44,7 +54,7 @@ from finance_agent.finance.surfaces import (
 )
 from finance_agent.jobs import DailyCloseResult, DailyCloseService
 from finance_agent.jobs.daily_close import STAGES
-from finance_agent.models.base import ModelMode
+from finance_agent.models.base import AdapterStatus, ModelMode
 from finance_agent.models.lm_studio import LMStudioAdapter, LMStudioConfig
 from finance_agent.models.openai import OpenAIConfig, OpenAIResponsesAdapter
 from finance_agent.models.router import ModelModeRouter
@@ -56,6 +66,11 @@ DEMO_TELEGRAM = ROOT / "fixtures" / "demo" / "telegram-update.json"
 DEMO_TELEGRAM_ATTACHMENT = (
     ROOT / "fixtures" / "demo" / "telegram-attachment-reference.json"
 )
+AKAHU_MAPPING_VERSION = "akahu_live@1"
+AKAHU_MAX_PAGES = 100
+AKAHU_MAX_ITEMS = 20_000
+AKAHU_MAX_WINDOW_DAYS = 366
+NEW_ZEALAND_TIME = ZoneInfo("Pacific/Auckland")
 
 
 def _stable_id(prefix: str, *parts: str) -> str:
@@ -79,6 +94,72 @@ def _finance_totals(snapshot: Mapping[str, Any]) -> FinanceTotals:
         projected_low_point_minor=int(totals["projectedLowPointMinor"]),
         reserve_shortfall_minor=int(totals["reserveShortfallMinor"]),
     )
+
+
+def _akahu_window(start: str | None, end: str | None) -> tuple[str, str]:
+    try:
+        end_date = date.fromisoformat(end) if end else _now().date()
+        start_date = date.fromisoformat(start) if start else end_date - timedelta(days=90)
+    except ValueError as exc:
+        raise ValueError("Akahu sync dates must use YYYY-MM-DD") from exc
+    if start_date > end_date:
+        raise ValueError("Akahu sync start must be on or before end")
+    if (end_date - start_date).days > AKAHU_MAX_WINDOW_DAYS:
+        raise ValueError(
+            f"Akahu sync window cannot exceed {AKAHU_MAX_WINDOW_DAYS} days"
+        )
+    return start_date.isoformat(), end_date.isoformat()
+
+
+def _akahu_query_window(start: str, end: str) -> tuple[str, str]:
+    """Translate inclusive owner dates to Akahu's exclusive/inclusive bounds."""
+
+    start_date = date.fromisoformat(start)
+    end_date = date.fromisoformat(end)
+    start_boundary = datetime.combine(
+        start_date,
+        time.min,
+        tzinfo=NEW_ZEALAND_TIME,
+    ) - timedelta(milliseconds=1)
+    end_boundary = datetime.combine(
+        end_date,
+        time(23, 59, 59, 999000),
+        tzinfo=NEW_ZEALAND_TIME,
+    )
+    return (
+        start_boundary.isoformat(timespec="milliseconds"),
+        end_boundary.isoformat(timespec="milliseconds"),
+    )
+
+
+def _akahu_csv(transactions: Sequence[AkahuTransaction]) -> bytes:
+    output = io.StringIO(newline="")
+    fieldnames = (
+        "source_row_id",
+        "account_id",
+        "occurred_on",
+        "description",
+        "amount_minor",
+        "currency",
+        "status",
+        "external_reference",
+    )
+    writer = csv.DictWriter(output, fieldnames=fieldnames, lineterminator="\n")
+    writer.writeheader()
+    for transaction in transactions:
+        writer.writerow(
+            {
+                "source_row_id": _stable_id("row", transaction.external_reference),
+                "account_id": transaction.account_id,
+                "occurred_on": transaction.occurred_on,
+                "description": transaction.description,
+                "amount_minor": str(transaction.amount_minor),
+                "currency": transaction.currency,
+                "status": "posted",
+                "external_reference": transaction.external_reference,
+            }
+        )
+    return output.getvalue().encode()
 
 
 class SQLiteReceiptSink(ReceiptSink):
@@ -599,7 +680,13 @@ class FinanceCoreAdapter:
 class LocalRouteServices:
     """Local-only route implementation with deterministic fixture boundaries."""
 
-    def __init__(self, database_path: str | Path, *, auto_seed: bool = True) -> None:
+    def __init__(
+        self,
+        database_path: str | Path,
+        *,
+        auto_seed: bool = True,
+        akahu_adapter: AkahuReadOnlyAdapter | None = None,
+    ) -> None:
         self.store = SQLiteStore(database_path)
         self.engine = FinanceEngine(self.store)
         self.engine.initialise()
@@ -610,9 +697,9 @@ class LocalRouteServices:
         self.telegram = TelegramFixtureIngestor(
             TelegramConfig(allowed_chat_id=700001)
         )
-        self.local_model = LMStudioAdapter(LMStudioConfig())
-        # The prototype never reads a cloud credential. Cloud remains honestly unconfigured.
-        self.cloud_model = OpenAIResponsesAdapter(OpenAIConfig(api_key=None))
+        self.akahu = akahu_adapter or AkahuReadOnlyAdapter()
+        self.local_model = LMStudioAdapter(LMStudioConfig.from_env())
+        self.cloud_model = OpenAIResponsesAdapter(OpenAIConfig.from_env())
         self.model_router = ModelModeRouter(self.local_model, self.cloud_model)
         self.receipts = SQLiteReceiptSink(self.store)
         self.current_mode = ModelMode.LOCAL
@@ -1063,6 +1150,160 @@ class LocalRouteServices:
                 "rowCount": imported.row_count,
             }
 
+    async def ingest_akahu_fixture(
+        self,
+        *,
+        payload: Mapping[str, object] | None,
+    ) -> Mapping[str, object]:
+        async with self._lock:
+            result = self.engine.ingest_akahu_fixture(payload)
+            self.working_understanding.ensure_current(workspace_id=WORKSPACE_ID)
+            return {
+                "sourceItemId": result.source_item_id,
+                "status": result.status,
+                "accountLabel": result.account_label,
+                "syncedAt": result.synced_at,
+                "rowCount": result.row_count,
+                "sourceSha256": result.digest,
+                "liveSyncAttempted": result.live_sync_attempted,
+            }
+
+    async def sync_akahu(
+        self,
+        *,
+        start: str | None,
+        end: str | None,
+    ) -> Mapping[str, object]:
+        """Fetch settled Akahu pages and commit only new exact-money rows."""
+
+        start_date, end_date = _akahu_window(start, end)
+        account_items: list[Mapping[str, object]] = []
+        cursor: str | None = None
+        seen_cursors: set[str] = set()
+        for _ in range(AKAHU_MAX_PAGES):
+            page = await self.akahu.list_accounts(cursor=cursor)
+            account_items.extend(page.items)
+            if len(account_items) > AKAHU_MAX_ITEMS:
+                raise ConnectorError("Akahu account sync exceeded the local item limit")
+            if page.next_cursor is None:
+                break
+            if page.next_cursor in seen_cursors:
+                raise ConnectorError("Akahu account pagination repeated a cursor")
+            seen_cursors.add(page.next_cursor)
+            cursor = page.next_cursor
+        else:
+            raise ConnectorError("Akahu account sync exceeded the page limit")
+        accounts = normalise_accounts(tuple(account_items))
+        if not accounts:
+            raise ConnectorError("Akahu returned no accounts")
+
+        query_start, query_end = _akahu_query_window(start_date, end_date)
+        transaction_items: list[Mapping[str, object]] = []
+        cursor = None
+        seen_cursors.clear()
+        for _ in range(AKAHU_MAX_PAGES):
+            page = await self.akahu.list_transactions(
+                start=query_start,
+                end=query_end,
+                cursor=cursor,
+                pending=False,
+            )
+            transaction_items.extend(page.items)
+            if len(transaction_items) > AKAHU_MAX_ITEMS:
+                raise ConnectorError("Akahu transaction sync exceeded the local item limit")
+            if page.next_cursor is None:
+                break
+            if page.next_cursor in seen_cursors:
+                raise ConnectorError("Akahu transaction pagination repeated a cursor")
+            seen_cursors.add(page.next_cursor)
+            cursor = page.next_cursor
+        else:
+            raise ConnectorError("Akahu transaction sync exceeded the page limit")
+        transactions = normalise_transactions(tuple(transaction_items), accounts)
+
+        synced_at = _now().isoformat()
+        async with self._lock:
+            with self.store.transaction() as connection:
+                for account in accounts:
+                    existing = connection.execute(
+                        "SELECT workspace_id FROM accounts WHERE account_id = ?",
+                        (account.account_id,),
+                    ).fetchone()
+                    if existing is not None and str(existing["workspace_id"]) != WORKSPACE_ID:
+                        raise ConnectorError(
+                            "Akahu account identity conflicts with another workspace"
+                        )
+                    connection.execute(
+                        """
+                        INSERT OR IGNORE INTO accounts(
+                            account_id, workspace_id, name, currency, created_at
+                        ) VALUES (?, ?, ?, ?, ?)
+                        """,
+                        (
+                            account.account_id,
+                            WORKSPACE_ID,
+                            f"Akahu · {account.label}",
+                            account.currency,
+                            synced_at,
+                        ),
+                    )
+                existing_references = {
+                    str(row["external_reference"])
+                    for row in connection.execute(
+                        """
+                        SELECT external_reference FROM source_rows
+                        WHERE mapping_version = ?
+                        """,
+                        (AKAHU_MAPPING_VERSION,),
+                    )
+                }
+            new_transactions = tuple(
+                transaction
+                for transaction in transactions
+                if transaction.external_reference not in existing_references
+            )
+            if not new_transactions:
+                self.working_understanding.ensure_current(workspace_id=WORKSPACE_ID)
+                return {
+                    "sourceItemId": None,
+                    "status": "no_new_transactions",
+                    "sourceSha256": None,
+                    "accountCount": len(accounts),
+                    "transactionCount": len(transactions),
+                    "rowCount": 0,
+                    "window": {"start": start_date, "end": end_date},
+                    "settledOnly": True,
+                    "liveSyncAttempted": True,
+                    "externalCallsMade": True,
+                }
+
+            content = _akahu_csv(new_transactions)
+            with tempfile.NamedTemporaryFile(suffix=".csv") as value:
+                value.write(content)
+                value.flush()
+                imported = self.engine.ingest_csv(
+                    value.name,
+                    label=(
+                        "Akahu live settled transactions "
+                        f"({start_date} to {end_date})"
+                    ),
+                    mapping_version=AKAHU_MAPPING_VERSION,
+                    received_at=synced_at,
+                )
+            self.working_understanding.ensure_current(workspace_id=WORKSPACE_ID)
+            return {
+                "sourceItemId": imported.source_item_id,
+                "status": "deduplicated" if imported.duplicate_import else "ingested",
+                "sourceSha256": imported.source_sha256,
+                "accountCount": len(accounts),
+                "transactionCount": len(transactions),
+                "rowCount": imported.row_count,
+                "window": {"start": start_date, "end": end_date},
+                "settledOnly": True,
+                "liveSyncAttempted": True,
+                "externalCallsMade": True,
+            }
+
     async def ingest_telegram_fixture(
         self,
         *,
@@ -1259,6 +1500,9 @@ class LocalRouteServices:
 
     async def model_capabilities(self) -> Mapping[str, object]:
         capabilities = await self.model_router.capabilities()
+        modes = capabilities.get("modes")
+        cloud = modes.get("cloud") if isinstance(modes, Mapping) else None
+        cloud_status = cloud.get("status") if isinstance(cloud, Mapping) else None
         return {
             **capabilities,
             "selectedMode": self.current_mode.value,
@@ -1273,7 +1517,58 @@ class LocalRouteServices:
                     "unavailable until explicitly configured outside this prototype."
                 ),
             },
-            "cloudCredentialState": "absent",
+            "cloudCredentialState": (
+                "configured"
+                if cloud_status == AdapterStatus.READY.value
+                else "absent"
+            ),
+            "externalCallsMade": False,
+        }
+
+    async def connection_capabilities(self) -> Mapping[str, object]:
+        akahu = self.akahu.capability()
+        akahu_configured = bool(akahu["configured"])
+        return {
+            "providers": {
+                "demo": {
+                    "status": "ready",
+                    "mode": "sealed_fixture",
+                    "markets": ["NZ"],
+                },
+                "csv": {
+                    "status": "ready",
+                    "mode": "local_file",
+                    "markets": ["NZ"],
+                },
+                "akahu": {
+                    "status": "configured" if akahu_configured else "unconfigured",
+                    "mode": "read_only",
+                    "markets": ["NZ"],
+                    "fixtureAvailable": True,
+                    "liveSyncPath": "/v1/connectors/akahu/sync",
+                    "credentialSource": (
+                        "process_environment" if akahu_configured else "absent"
+                    ),
+                    "detail": (
+                        "Read-only live sync is configured for this process."
+                        if akahu_configured
+                        else (
+                            "The sealed Akahu-shaped demo is available. Live reads require "
+                            "process-injected Akahu app and user tokens."
+                        )
+                    ),
+                },
+                "plaid": {
+                    "status": "not_installed",
+                    "mode": "read_only",
+                    "markets": [],
+                    "supportsNewZealand": False,
+                    "detail": (
+                        "Plaid does not support New Zealand. A sandbox Hosted Link "
+                        "adapter is not yet configured in this build."
+                    ),
+                },
+            },
             "externalCallsMade": False,
         }
 
@@ -1291,6 +1586,7 @@ class LocalRouteServices:
         )
 
     async def aclose(self) -> None:
+        await self.akahu.aclose()
         await self.local_model.aclose()
         await self.cloud_model.aclose()
 

@@ -24,8 +24,10 @@
     "demo:daily-close": "services/api/.venv/bin/python scripts/demo_control.py daily-close",
     "demo:golden": "services/api/.venv/bin/python scripts/golden_flow.py",
     "test:golden": "services/api/.venv/bin/pytest -q services/api/tests/integration/test_golden_api.py",
-    "test:local-model": "node scripts/not-implemented.mjs test:local-model agent-harness",
-    "test:cloud-model": "node scripts/not-implemented.mjs test:cloud-model agent-harness",
+    "eval:offline": "PYTHONPATH=services/api/src services/api/.venv/bin/python evals/run_offline_harness.py && PYTHONPATH=services/api/src services/api/.venv/bin/python evals/run_narrative_guard.py",
+    "eval:lmstudio:live": "PYTHONPATH=services/api/src services/api/.venv/bin/python evals/run_live_lmstudio_harness.py",
+    "test:local-model": "services/api/.venv/bin/pytest -q services/api/tests/models/test_lm_studio.py services/api/tests/agent/test_harness_controller.py && pnpm eval:offline",
+    "test:cloud-model": "services/api/.venv/bin/pytest -q services/api/tests/models/test_narrative_guard.py services/api/tests/agent/test_harness_controller.py",
     "test:telegram-live": "node scripts/not-implemented.mjs test:telegram-live connectors"
   }
 }

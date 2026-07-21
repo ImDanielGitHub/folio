@@ -32,6 +32,19 @@ class RouteServices(Protocol):
         content: bytes,
     ) -> Mapping[str, object]: ...
 
+    async def ingest_akahu_fixture(
+        self,
+        *,
+        payload: Mapping[str, object] | None,
+    ) -> Mapping[str, object]: ...
+
+    async def sync_akahu(
+        self,
+        *,
+        start: str | None,
+        end: str | None,
+    ) -> Mapping[str, object]: ...
+
     async def ingest_telegram_fixture(
         self,
         *,
@@ -71,6 +84,8 @@ class RouteServices(Protocol):
     async def artifact(self, artifact_id: str) -> ArtifactPayload: ...
 
     async def model_capabilities(self) -> Mapping[str, object]: ...
+
+    async def connection_capabilities(self) -> Mapping[str, object]: ...
 
     async def working_understanding_diagnostics(
         self,

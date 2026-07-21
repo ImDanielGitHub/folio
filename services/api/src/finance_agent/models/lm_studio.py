@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -17,10 +18,12 @@ from finance_agent.models.base import (
     ModelUnavailable,
 )
 
+DEFAULT_BASE_URL = "http://127.0.0.1:1234/v1"
+
 
 @dataclass(frozen=True, slots=True)
 class LMStudioConfig:
-    base_url: str = "http://127.0.0.1:1234/v1"
+    base_url: str = DEFAULT_BASE_URL
     model: str | None = None
     api_token: str | None = field(default=None, repr=False)
     timeout_seconds: float = 30.0
@@ -29,6 +32,12 @@ class LMStudioConfig:
         parsed = urlparse(self.base_url)
         if parsed.scheme != "http" or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:
             raise ValueError("LM Studio must use a loopback http endpoint")
+
+    @classmethod
+    def from_env(cls) -> LMStudioConfig:
+        base_url = os.getenv("LM_STUDIO_BASE_URL", DEFAULT_BASE_URL).strip() or DEFAULT_BASE_URL
+        model = os.getenv("LM_STUDIO_MODEL", "").strip() or None
+        return cls(base_url=base_url, model=model)
 
 
 class LMStudioAdapter:

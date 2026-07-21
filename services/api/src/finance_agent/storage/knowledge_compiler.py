@@ -413,6 +413,7 @@ class CommittedFinanceKnowledgeCompiler:
         )
         document_kinds = {
             "csv": DocumentKind.BANK_STATEMENT,
+            "akahu_fixture": DocumentKind.BANK_STATEMENT,
             "telegram_fixture": DocumentKind.CORRESPONDENCE,
             "owner_claim": DocumentKind.NOTE,
         }
@@ -430,7 +431,7 @@ class CommittedFinanceKnowledgeCompiler:
             )
             source_kind = (
                 SourceKind.CONNECTOR
-                if str(item["source_type"]) == "telegram_fixture"
+                if str(item["source_type"]) in {"telegram_fixture", "akahu_fixture"}
                 else SourceKind.IMPORT
             )
             source = KnowledgeSource(source_kind, f"source_item:{source_item_id}")

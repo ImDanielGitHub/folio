@@ -46,6 +46,7 @@ const sourceTypeLabels: Record<SourceItem["sourceType"], string> = {
   csv: "Bank export",
   telegram_fixture: "Telegram message",
   owner_claim: "Owner note",
+  akahu_fixture: "Akahu-shaped feed",
 };
 
 const statusCopy: Record<SourceItem["status"], string> = {
@@ -67,6 +68,9 @@ function sourceInterpretation(source: SourceItem): string {
   if (source.sourceType === "telegram_fixture") {
     return "Folio treats the message as owner-supplied context, not independent proof. The linked transaction remains the financial source of truth.";
   }
+  if (source.sourceType === "akahu_fixture") {
+    return `Folio processed ${source.rowCount} synthetic provider rows through the same immutable source and evidence boundary used by a bank connector. The receipt records that no live Akahu sync was attempted.`;
+  }
   return "Folio keeps this as an owner-provided claim. It can explain a decision, but it cannot silently replace source evidence or create a ledger fact.";
 }
 
@@ -85,6 +89,17 @@ function sourcePreview(source: SourceItem) {
         <div>
           <strong>{source.label}</strong>
           <p>{source.rowCount} {source.rowCount === 1 ? "row" : "rows"} retained in the local source file.</p>
+        </div>
+      </div>
+    );
+  }
+  if (source.sourceType === "akahu_fixture") {
+    return (
+      <div className="source-file-preview" aria-label={`Preview of ${source.label}`}>
+        <span className="source-file-type">API</span>
+        <div>
+          <strong>{source.label}</strong>
+          <p>{source.rowCount} synthetic read-only rows · no live bank request.</p>
         </div>
       </div>
     );
@@ -445,8 +460,13 @@ export function Drawer({
                   </article>
                   <article>
                     <span><SourceIcon size={17} /></span>
-                    <div><strong>Akahu</strong><p>Read-only bank connection.</p></div>
-                    <b className="connection-state state-off">Off</b>
+                    <div><strong>Akahu</strong><p>{backend.akahuReady ? "Configured for read-only accounts and settled transactions." : "Personal App or OAuth configuration is required for live New Zealand data."}</p></div>
+                    <b className={`connection-state ${backend.akahuReady || sources.some((source) => source.sourceType === "akahu_fixture") ? "state-live" : "state-off"}`}>{backend.akahuReady ? "Ready" : sources.some((source) => source.sourceType === "akahu_fixture") ? "Fixture processed" : "Unconfigured"}</b>
+                  </article>
+                  <article>
+                    <span><SourceIcon size={17} /></span>
+                    <div><strong>Plaid</strong><p>Hosted Link for supported overseas markets; New Zealand institutions are not supported.</p></div>
+                    <b className="connection-state state-off">Not configured</b>
                   </article>
                 </div>
                 <details className="technical-details connection-technical-details">
@@ -456,6 +476,7 @@ export function Drawer({
                     <div><dt>Runtime mode</dt><dd>{backend.mode}</dd></div>
                     <div><dt>Local model status</dt><dd>{backend.lmStudioStatus}</dd></div>
                     <div><dt>Cloud credential</dt><dd>{backend.cloudCredentialState}</dd></div>
+                    <div><dt>Akahu</dt><dd>{backend.akahuStatus}</dd></div>
                   </dl>
                 </details>
               </section>

@@ -67,6 +67,15 @@ def main() -> int:
 
     reset = json_request("/v1/demo/reset", {"workspaceId": WORKSPACE_ID})
     assert reset["rowCount"] == 10 and reset["nextAction"] == "run_daily_close"
+    akahu = json_request("/v1/ingest/akahu-fixture", {})
+    assert akahu["liveSyncAttempted"] is False
+    assert akahu["rowCount"] == 6
+    assert akahu["status"] in {"ingested", "deduplicated"}
+    akahu_again = json_request("/v1/ingest/akahu-fixture", {})
+    assert akahu_again["status"] == "deduplicated"
+
+    # Restore the ten-row baseline before the stable scripted accounting flow.
+    reset = json_request("/v1/demo/reset", {"workspaceId": WORKSPACE_ID})
     close = json_request(
         "/v1/jobs/daily-close",
         {"workspaceId": WORKSPACE_ID, "idempotencyKey": "golden-http-close"},
@@ -144,6 +153,7 @@ def main() -> int:
             {
                 "status": "PASS",
                 "resetRows": reset["rowCount"],
+                "akahuFixtureRows": akahu["rowCount"],
                 "closeEventCount": len(close_events),
                 "baselineBusinessExpenseMinor": snapshot["totals"]["businessExpenseMinor"],
                 "correctedBusinessExpenseMinor": corrected["totals"]["businessExpenseMinor"],

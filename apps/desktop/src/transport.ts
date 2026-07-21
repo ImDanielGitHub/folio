@@ -11,6 +11,9 @@ export type BackendHealth = {
   lmStudioStatus: string;
   cloudReady: boolean;
   cloudCredentialState: "absent" | "configured";
+  akahuReady: boolean;
+  akahuStatus: "configured" | "unconfigured";
+  akahuDetail: string;
 };
 
 const LOOPBACK_API_URL = window.financeDesktop?.apiBase ?? "http://127.0.0.1:8787";
@@ -49,12 +52,18 @@ async function requestJson<T>(path: string, init?: RequestInit, timeoutMs = 2400
 export async function probeBackend(): Promise<BackendHealth> {
   try {
     await requestJson<Record<string, unknown>>("/health", undefined, 900);
-    const capability = await requestJson<Record<string, unknown>>("/v1/models/capabilities", undefined, 3200);
+    const [capability, connections] = await Promise.all([
+      requestJson<Record<string, unknown>>("/v1/models/capabilities", undefined, 3200),
+      requestJson<Record<string, unknown>>("/v1/connections/capabilities", undefined, 3200),
+    ]);
     const modes = (capability.modes ?? {}) as Record<string, unknown>;
     const local = (modes.local ?? {}) as Record<string, unknown>;
     const cloud = (modes.cloud ?? {}) as Record<string, unknown>;
     const localStatus = typeof local.status === "string" ? local.status : "unavailable";
     const cloudStatus = typeof cloud.status === "string" ? cloud.status : "unavailable";
+    const providers = (connections.providers ?? {}) as Record<string, unknown>;
+    const akahu = (providers.akahu ?? {}) as Record<string, unknown>;
+    const akahuStatus = akahu.status === "configured" ? "configured" : "unconfigured";
     return {
       mode: "live",
       label: "Local service connected",
@@ -64,6 +73,9 @@ export async function probeBackend(): Promise<BackendHealth> {
       lmStudioStatus: localStatus,
       cloudReady: cloudStatus === "ready",
       cloudCredentialState: capability.cloudCredentialState === "configured" ? "configured" : "absent",
+      akahuReady: akahuStatus === "configured",
+      akahuStatus,
+      akahuDetail: typeof akahu.detail === "string" ? akahu.detail : "Live Akahu is not configured for this process.",
     };
   } catch {
     return {
@@ -77,6 +89,9 @@ export async function probeBackend(): Promise<BackendHealth> {
       lmStudioStatus: "not checked",
       cloudReady: false,
       cloudCredentialState: "absent",
+      akahuReady: false,
+      akahuStatus: "unconfigured",
+      akahuDetail: "Start the local Folio service to inspect Akahu configuration.",
     };
   }
 }
@@ -173,6 +188,32 @@ export async function ingestTelegramFixture(): Promise<Record<string, unknown>> 
       },
     }),
   });
+}
+
+export type AkahuFixturePayload = {
+  account?: { name: string; maskedNumber?: string; currency?: "NZD" };
+  syncedAt?: string;
+  transactions?: Array<Record<string, unknown>>;
+};
+
+export async function ingestAkahuFixture(
+  payload: AkahuFixturePayload = {},
+): Promise<Record<string, unknown>> {
+  return requestJson("/v1/ingest/akahu-fixture", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }, 8000);
+}
+
+export async function syncAkahuLive(): Promise<Record<string, unknown>> {
+  return requestJson("/v1/connectors/akahu/sync", {
+    method: "POST",
+    body: JSON.stringify({}),
+  }, 30000);
+}
+
+export async function loadConnectionCapabilities(): Promise<Record<string, unknown>> {
+  return requestJson("/v1/connections/capabilities", undefined, 3200);
 }
 
 export async function readRunEvents(runId: string): Promise<RunEvent[]> {

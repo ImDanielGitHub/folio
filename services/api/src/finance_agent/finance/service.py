@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from finance_agent.artifacts import PREPARATORY_LANGUAGE, OwnerPackDTO, render_owner_pack
+from finance_agent.connectors.akahu_fixture import AkahuFixtureIngestor, AkahuFixtureResult
 from finance_agent.storage import SQLiteStore, canonical_json
 
 from .classification import (
@@ -23,7 +24,7 @@ from .classification import (
 )
 from .domain import CashForecast, ClassificationRule, FinanceTotals, Transaction
 from .forecast import koru_30_day_forecast
-from .ingest import CSVImporter, ImportResult, stable_id
+from .ingest import CSVImporter, ImportResult, stable_id, transaction_id_for
 from .surfaces import (
     cash_scenario_surface,
     living_brief_surface,
@@ -178,6 +179,150 @@ class FinanceEngine:
             received_at=received_at,
         )
 
+    def ingest_akahu_fixture(
+        self,
+        payload: Mapping[str, Any] | None = None,
+        *,
+        source_item_id: str | None = None,
+    ) -> AkahuFixtureResult:
+        """Persist a sealed Akahu-shaped sync as immutable source evidence."""
+
+        parsed = AkahuFixtureIngestor().ingest(payload, source_item_id=source_item_id)
+        with self.store.transaction() as connection:
+            existing = connection.execute(
+                """
+                SELECT source_item_id, row_count
+                FROM source_items
+                WHERE workspace_id = ? AND digest = ? AND mapping_version = ?
+                """,
+                (WORKSPACE_ID, parsed.digest, AkahuFixtureIngestor.MAPPING_VERSION),
+            ).fetchone()
+            if existing is not None:
+                return AkahuFixtureResult(
+                    source_item_id=existing["source_item_id"],
+                    status="deduplicated",
+                    account_label=parsed.account_label,
+                    synced_at=parsed.synced_at,
+                    row_count=existing["row_count"],
+                    digest=parsed.digest,
+                    transactions=parsed.transactions,
+                    live_sync_attempted=False,
+                )
+
+            connection.execute(
+                """
+                INSERT INTO source_items(
+                    source_item_id, workspace_id, source_type, label, digest,
+                    mapping_version, received_at, status, row_count
+                ) VALUES (?, ?, 'akahu_fixture', ?, ?, ?, ?, 'pending', ?)
+                """,
+                (
+                    parsed.source_item_id,
+                    WORKSPACE_ID,
+                    parsed.account_label,
+                    parsed.digest,
+                    AkahuFixtureIngestor.MAPPING_VERSION,
+                    parsed.synced_at,
+                    parsed.row_count,
+                ),
+            )
+            source_evidence_id = stable_id("evd", parsed.digest, "akahu_source")
+            connection.execute(
+                """
+                INSERT INTO evidence_links(
+                    evidence_id, workspace_id, source_item_id, source_row_id, label, created_at
+                ) VALUES (?, ?, ?, NULL, ?, ?)
+                """,
+                (
+                    source_evidence_id,
+                    WORKSPACE_ID,
+                    parsed.source_item_id,
+                    f"{parsed.account_label} (sealed Akahu fixture)",
+                    parsed.synced_at,
+                ),
+            )
+
+            for row_number, transaction in enumerate(parsed.transactions, start=1):
+                source_row_id = stable_id(
+                    "row", parsed.digest, transaction.external_reference
+                )
+                raw = {
+                    "occurredOn": transaction.occurred_on,
+                    "description": transaction.description,
+                    "amountMinor": transaction.amount_minor,
+                    "externalReference": transaction.external_reference,
+                    "status": transaction.status,
+                    "provider": "akahu_fixture",
+                }
+                raw_json = canonical_json(raw)
+                row_hash = hashlib.sha256(
+                    f"{parsed.digest}\0{row_number}\0{raw_json}".encode()
+                ).hexdigest()
+                connection.execute(
+                    """
+                    INSERT INTO source_rows(
+                        source_row_id, source_item_id, row_number, account_id, occurred_on,
+                        description, amount_minor, currency, source_status, external_reference,
+                        mapping_version, row_hash, raw_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'NZD', ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        source_row_id,
+                        parsed.source_item_id,
+                        row_number,
+                        ACCOUNT_ID,
+                        transaction.occurred_on,
+                        transaction.description,
+                        transaction.amount_minor,
+                        transaction.status,
+                        transaction.external_reference,
+                        AkahuFixtureIngestor.MAPPING_VERSION,
+                        row_hash,
+                        raw_json,
+                    ),
+                )
+                evidence_id = stable_id("evd", parsed.digest, source_row_id)
+                connection.execute(
+                    """
+                    INSERT INTO evidence_links(
+                        evidence_id, workspace_id, source_item_id, source_row_id, label, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        evidence_id,
+                        WORKSPACE_ID,
+                        parsed.source_item_id,
+                        source_row_id,
+                        f"{transaction.description} — Akahu fixture row {row_number}",
+                        parsed.synced_at,
+                    ),
+                )
+                connection.execute(
+                    """
+                    INSERT INTO transactions(
+                        transaction_id, workspace_id, account_id, source_row_id, evidence_id,
+                        occurred_on, description, amount_minor, currency, source_status, status,
+                        classification, category, classification_source, rule_id,
+                        duplicate_of_transaction_id, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'NZD', ?, 'pending', 'unresolved', NULL,
+                        'unclassified', NULL, NULL, ?, ?)
+                    """,
+                    (
+                        transaction_id_for(source_row_id, parsed.digest),
+                        WORKSPACE_ID,
+                        ACCOUNT_ID,
+                        source_row_id,
+                        evidence_id,
+                        transaction.occurred_on,
+                        transaction.description,
+                        transaction.amount_minor,
+                        transaction.status,
+                        parsed.synced_at,
+                        parsed.synced_at,
+                    ),
+                )
+        return parsed
+
     @staticmethod
     def _transaction_from_row(row: sqlite3.Row) -> Transaction:
         return Transaction(
@@ -236,7 +381,9 @@ class FinanceEngine:
             """
             UPDATE source_items
             SET status = 'processed'
-            WHERE workspace_id = ? AND source_type = 'csv' AND status = 'pending'
+            WHERE workspace_id = ?
+              AND source_type IN ('csv', 'akahu_fixture')
+              AND status = 'pending'
             """,
             (WORKSPACE_ID,),
         )

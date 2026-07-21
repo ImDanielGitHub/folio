@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from datetime import date
 from typing import Annotated, Any
 
 from fastapi import (
@@ -20,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from finance_agent.agent.events import SequenceGap, format_sse
 from finance_agent.api.routes.dependencies import RouteServices, get_route_services
+from finance_agent.connectors.base import ConnectorError
 
 
 class RequestModel(BaseModel):
@@ -35,6 +37,17 @@ class TelegramFixtureRequest(RequestModel):
     attachment_reference: dict[str, Any] | None = Field(
         default=None, alias="attachmentReference"
     )
+
+
+class AkahuFixtureRequest(RequestModel):
+    account: dict[str, Any] | None = None
+    synced_at: str | None = Field(default=None, alias="syncedAt")
+    transactions: list[dict[str, Any]] | None = None
+
+
+class AkahuSyncRequest(RequestModel):
+    start: date | None = None
+    end: date | None = None
 
 
 class DailyCloseRequest(RequestModel):
@@ -108,6 +121,35 @@ def create_router() -> APIRouter:
                 attachment_reference=body.attachment_reference,
             )
         )
+
+    @router.post("/v1/ingest/akahu-fixture")
+    async def ingest_akahu_fixture(
+        body: AkahuFixtureRequest,
+        services: Services,
+    ) -> dict[str, object]:
+        payload = body.model_dump(by_alias=True, exclude_none=True)
+        return dict(
+            await services.ingest_akahu_fixture(payload=payload or None)
+        )
+
+    @router.post("/v1/connectors/akahu/sync")
+    async def sync_akahu(
+        services: Services,
+        body: AkahuSyncRequest | None = None,
+    ) -> dict[str, object]:
+        body = body or AkahuSyncRequest()
+        try:
+            return dict(
+                await services.sync_akahu(
+                    start=body.start.isoformat() if body.start else None,
+                    end=body.end.isoformat() if body.end else None,
+                )
+            )
+        except ConnectorError as exc:
+            status = 409 if str(exc) == "Akahu is disabled or unconfigured" else 502
+            raise HTTPException(status_code=status, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @router.post("/v1/jobs/daily-close")
     async def enqueue_daily_close(
@@ -230,6 +272,10 @@ def create_router() -> APIRouter:
     @router.get("/v1/models/capabilities")
     async def model_capabilities(services: Services) -> dict[str, object]:
         return dict(await services.model_capabilities())
+
+    @router.get("/v1/connections/capabilities")
+    async def connection_capabilities(services: Services) -> dict[str, object]:
+        return dict(await services.connection_capabilities())
 
     @router.get("/v1/diagnostics/working-understanding")
     async def working_understanding_diagnostics(
