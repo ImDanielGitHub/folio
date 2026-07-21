@@ -500,7 +500,7 @@ export function Drawer({
               <section className="drawer-section danger-zone">
                 <h3>Demo workspace</h3>
                 <p>Return the sample business to its original transactions and totals.</p>
-                <button className="text-button" onClick={onReset}>Reset seeded workspace</button>
+                <button className="text-button" onClick={onReset}>Reset demo</button>
               </section>
             </>
           ) : null}

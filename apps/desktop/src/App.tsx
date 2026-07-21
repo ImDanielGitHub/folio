@@ -948,7 +948,14 @@ export function App() {
         </div>
         <div className="rail-bottom">
           <span className={`rail-runtime runtime-${backend.mode}`} title={backend.detail} />
-          <button aria-label="More options" title="More options"><MoreIcon /></button>
+          <button
+            aria-label="Reset demo"
+            title="Reset demo"
+            disabled={running}
+            onClick={() => void handleReset()}
+          >
+            <UndoIcon />
+          </button>
         </div>
       </nav>
 
