@@ -6,6 +6,22 @@
 
 This document is the operating handoff for the finished Build Week repository. It records what is implemented, how to run it, how to configure the optional providers, what has been verified, and the remaining gaps between this prototype and the broader Folio product vision.
 
+## 0. Canonical integration record
+
+- Canonical branch: `main` in `/Users/dananeke/folio-build-week`.
+- Completed product commit: `9a33377` (`feat: complete Folio submission product`).
+- Reconciled branch: `github/main` at `e9a1b7d`.
+- Merge commit: `82de538` (`merge: reconcile superseded submission branch into canonical main`).
+- Resolution: the earlier branch's useful Akahu fixture, golden-flow and submission work was already incorporated and extended in `9a33377`. Its superseded light-UI worker notes, duplicate source copies and old screenshots were intentionally not restored. The merge records that history while keeping the tested dark product as the canonical tree.
+- Media correction: the incomplete Remotion/ElevenLabs lane was removed after Daniel chose to make the final video himself; it is not part of the product dependency graph.
+- Post-merge acceptance on 21 July 2026 NZST:
+  - contract validation passed all 12 cases;
+  - API/desktop suite passed all 61 Python tests plus TypeScript checks;
+  - Electron TypeScript and Vite production build passed;
+  - golden flow returned `status: PASS`, 6 sealed Akahu rows, 25 Daily Close events, owner-pack artefact generation, reversible correction and `externalCallsMade: false`.
+
+The local `main` branch is the verified source of truth. It is intentionally not described as remote/published proof until its commits are pushed to the repository URL used in the Devpost entry.
+
 ## 1. What Folio is now
 
 Folio is a standalone finance product, not a Hermes Finance reskin. It starts as one calm conversation and reveals a financial canvas only when the current answer needs a chart, transaction, source, scenario or document. Under that simple surface it keeps deterministic money calculations, immutable source evidence, reversible finance events and a model-independent working understanding of the business.
