@@ -19,6 +19,7 @@ This document is the operating handoff for the finished Build Week repository. I
   - API/desktop suite passed all 61 Python tests plus TypeScript checks;
   - Electron TypeScript and Vite production build passed;
   - golden flow returned `status: PASS`, 6 sealed Akahu rows, 25 Daily Close events, owner-pack artefact generation, reversible correction and `externalCallsMade: false`.
+  - LM Studio capability discovery found the loaded `qwen/qwen3-vl-8b` model over loopback and reported structured output, tool use and a 262,144-token advertised context window. This proves runtime discovery, not behavioural finance accuracy; its measured tier remains unset until the live evaluation is run.
 
 The local `main` branch is the verified source of truth. It is intentionally not described as remote/published proof until its commits are pushed to the repository URL used in the Devpost entry.
 
