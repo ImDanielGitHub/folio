@@ -45,6 +45,15 @@ class FixtureRouteServices:
     async def sync_akahu(self, **kwargs: Any) -> dict[str, object]:
         return {"sourceItemId": "src_koru_akahu_live", "liveSyncAttempted": True}
 
+    async def ingest_plaid_fixture(self, **kwargs: Any) -> dict[str, object]:
+        return {"sourceItemId": "src_koru_plaid_fixture", "status": "ingested"}
+
+    async def create_plaid_link_token(self, **kwargs: Any) -> dict[str, object]:
+        return {"linkToken": "link-sandbox-fixture", "environment": "sandbox"}
+
+    async def sync_plaid(self, **kwargs: Any) -> dict[str, object]:
+        return {"sourceItemId": "src_koru_plaid_live", "liveSyncAttempted": True}
+
     async def ingest_telegram_fixture(self, **kwargs: Any) -> dict[str, object]:
         return {"sourceItemId": "src_koru_telegram_910001", "status": "ingested"}
 
@@ -70,7 +79,7 @@ class FixtureRouteServices:
         return {"modes": {"local": {"status": "unavailable"}}}
 
     async def connection_capabilities(self) -> dict[str, object]:
-        return {"providers": {"akahu": {"status": "unconfigured"}}}
+        return {"providers": {"akahu": {"status": "unconfigured"}, "plaid": {"status": "unconfigured"}}}
 
     async def working_understanding_diagnostics(self, **kwargs: Any) -> dict[str, object]:
         return {
@@ -101,6 +110,9 @@ async def test_all_frozen_routes_are_exposed_and_fixture_calls_run(app: FastAPI)
         ("POST", "/v1/ingest/csv"),
         ("POST", "/v1/ingest/akahu-fixture"),
         ("POST", "/v1/connectors/akahu/sync"),
+        ("POST", "/v1/ingest/plaid-fixture"),
+        ("POST", "/v1/connectors/plaid/link-token"),
+        ("POST", "/v1/connectors/plaid/sync"),
         ("POST", "/v1/ingest/telegram-fixture"),
         ("POST", "/v1/jobs/daily-close"),
         ("GET", "/v1/jobs/{run_id}/events"),

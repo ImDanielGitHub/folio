@@ -13,3 +13,13 @@ money, normalise rows, persist tokens, write provider state or participate in th
 golden path. Task 1 owns exact-money normalisation, source commits and cursor
 transactions. A production Akahu connection still requires provider-approved
 OAuth/consent, scope, token-storage, retention, privacy and monitoring decisions.
+
+Plaid mirrors that pattern for US / supported overseas markets. The sealed
+`fixtures/demo/plaid-sync.json` feed is the default demo path and never touches
+the network. Live sandbox Link is dormant unless `FINANCE_PLAID_ENABLED=true`
+with process-injected `PLAID_CLIENT_ID` and `PLAID_SECRET`. Hosts are pinned to
+`sandbox.plaid.com` (default), `development.plaid.com` or `production.plaid.com`.
+The adapter can create a Link token, exchange a public token, or use sandbox
+`/sandbox/public_token/create` when no Link session is present. Access tokens are
+ephemeral for the sync request and are never stored in SQLite, evidence or
+receipts. Plaid does not support New Zealand banks.

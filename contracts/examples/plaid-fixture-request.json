@@ -1,0 +1,17 @@
+{
+  "account": {
+    "name": "Chase Business Checking",
+    "maskedNumber": "0000",
+    "currency": "USD"
+  },
+  "syncedAt": "2026-07-17T09:40:00-04:00",
+  "transactions": [
+    {
+      "occurredOn": "2026-07-17",
+      "description": "UBER TRIP HELP.UBER.COM",
+      "amountMinor": -1845,
+      "externalReference": "plaid_chase_uber_001",
+      "status": "posted"
+    }
+  ]
+}

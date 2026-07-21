@@ -50,7 +50,16 @@ Prerequisites:
 - `uv`;
 - optional LM Studio for local narrative generation.
 
-From the repository root:
+From the repository root, the preferred demo launcher is:
+
+```bash
+./run --reset
+# optional local model: ./run --reset --with-lms
+```
+
+`./run` is idempotent: it reuses healthy API/UI listeners when present, waits for `/health`, prints the recording URL (`http://127.0.0.1:4173/?onboarding=1`), and can reset the Koru seed. Logs live under `var/run-logs/`. Stop Folio processes started by the launcher with `./run --stop`.
+
+Manual equivalent:
 
 ```bash
 pnpm install:all
@@ -124,6 +133,59 @@ The default window is 90 days and the maximum is 366 days. The provider host is 
 
 **Current proof boundary:** the full path is MockTransport-tested, including headers, pagination, exact cents, deduplication and fail-closed behaviour. No real Daniel-owned Akahu credentials were available during Build Week, so a real provider response remains unverified.
 
+## 4b. Plaid setup (US / Build Week judges)
+
+Folio's live Plaid seam is deliberately read-only and sandbox-first. The **default demo path is the sealed fixture** (`fixtures/demo/plaid-sync.json`). No Plaid network call is made unless credentials are injected.
+
+Add the following values to the environment of the API process for live sandbox:
+
+```bash
+FINANCE_PLAID_ENABLED=true
+PLAID_CLIENT_ID=your-sandbox-client-id
+PLAID_SECRET=your-sandbox-secret
+PLAID_ENV=sandbox
+```
+
+Optional:
+
+```bash
+PLAID_ACCESS_TOKEN=access-sandbox-…   # skip Link; sync with an existing Item
+PLAID_PRODUCTS=transactions
+PLAID_COUNTRY_CODES=US
+PLAID_CLIENT_NAME=Folio
+```
+
+Restart the API. The desktop probes `GET /v1/connections/capabilities`; when configured, onboarding changes from **Preview a Plaid import** to **Sync Plaid sandbox read-only**.
+
+### Demo: sealed fixture (default, offline)
+
+1. Start Folio with Plaid left disabled (`FINANCE_PLAID_ENABLED=false` or unset).
+2. Onboarding → **Preview a Plaid import** → **Process sealed Plaid feed**.
+3. Six Chase-shaped USD provider rows are committed locally. Receipts record `liveSyncAttempted: false`.
+
+```bash
+curl -sS -X POST http://127.0.0.1:8787/v1/ingest/plaid-fixture \
+  -H 'Content-Type: application/json' \
+  -d '{}'
+```
+
+### Demo: live sandbox (credentials required)
+
+```bash
+# Create a Link token for a real Plaid Link session
+curl -sS -X POST http://127.0.0.1:8787/v1/connectors/plaid/link-token
+
+# Sync without Link UI: sandbox creates a public token, exchanges it, then
+# /transactions/sync. Or pass {"publicToken":"…"} after Link onSuccess.
+curl -sS -X POST http://127.0.0.1:8787/v1/connectors/plaid/sync \
+  -H 'Content-Type: application/json' \
+  -d '{}'
+```
+
+Hosts are pinned to `sandbox.plaid.com` by default. Access tokens are ephemeral for the sync request and are not stored in SQLite, evidence or receipts. Plaid does not support New Zealand banks.
+
+**Honesty note:** Folio's P0 ledger columns remain NZD-constrained; sealed/live Plaid amounts are exact minor units with provider currency retained in raw evidence (`providerCurrency: USD`). This is connector-path proof for Build Week, not a multi-currency production ledger.
+
 ## 5. NZ bank CSV setup
 
 The importer accepts the canonical Folio schema and practical NZ layouts:
@@ -189,6 +251,7 @@ Do not describe the offline harness as a live-model result.
 | Finance-document preparation | Evidence-linked HTML and PDF owner pack | Runtime fixture and artefact tests |
 | Telegram-style expense context | Sealed message + attachment fixture through immutable source pipeline | Fixture integration proof only |
 | Akahu for New Zealand | Sealed fixture plus real config-gated, read-only live seam | Mock provider proof; real account unverified |
+| Plaid for US / overseas | Sealed fixture plus config-gated sandbox Link / sync | Mock provider proof; real sandbox Item optional |
 | Practical NZ CSV ingestion | Canonical, ANZ-style debit/credit and ASB-style signed amount mappings | Exact-money and dedupe tests |
 | Reversible actions | Event receipt, visible Undo and superseding audit history | Integration and UI proof |
 | Clean-room use of Hermes/Bionic lessons | Independent implementation and explicit attribution/clean-room records | Repository documentation |
