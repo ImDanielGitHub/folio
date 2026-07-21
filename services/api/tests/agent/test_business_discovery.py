@@ -64,5 +64,31 @@ def test_discovery_skips_writes_and_open_questions() -> None:
         asked_at=datetime.now(UTC),
         question_id="question_blocked_open",
     )
+    blocked_answer = decide_business_discovery(
+        content="I usually make the spending calls myself.",
+        working_understanding={"ownerStatementCount": 1, "entries": []},
+        has_active_question=False,
+        had_committed_write=False,
+        plan_was_read=True,
+        asked_at=datetime.now(UTC),
+        question_id="question_just_answered",
+        just_answered_question=True,
+    )
     assert blocked_write.question is None
     assert blocked_open.question is None
+    assert blocked_answer.question is None
+
+
+def test_discovery_does_not_repeat_prompt_already_in_agent_turn() -> None:
+    from finance_agent.agent.business_discovery import next_discovery_prompt
+
+    prior = (
+        "Here’s what I found. Who usually makes the day-to-day spending calls for Koru Studio?"
+    )
+    gap = next_discovery_prompt(
+        {"ownerStatementCount": 1, "entries": []},
+        asked_prompts=[prior],
+    )
+    assert gap is not None
+    assert "spending" not in gap[1].lower()
+

@@ -275,6 +275,7 @@ class FinanceAgentController:
                 asked_at=datetime.now(UTC),
                 question_id=receipt_id("question", request.run_id, "discovery"),
                 asked_prompts=asked_prompts,
+                just_answered_question=had_active_question,
             )
             if discovery.question is not None:
                 trace.append(ControllerState.ASK_ONE_QUESTION)

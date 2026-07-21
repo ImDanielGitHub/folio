@@ -73,6 +73,21 @@ _FUNDS_LOCATION_PATTERN = re.compile(
     r"in\s+(?:the\s+)?(?P<location>[^.;\n]{3,100})(?=[.;\n]|$)",
     re.IGNORECASE,
 )
+_SPENDING_DECISION_PATTERN = re.compile(
+    r"\b(?:i|we)\s+(?:usually\s+)?(?:make|handle|own)\s+(?:the\s+)?"
+    r"(?:day[- ]to[- ]day\s+)?(?:spending|money)\s+(?:calls|decisions)\b",
+    re.IGNORECASE,
+)
+_WORK_TYPE_PATTERN = re.compile(
+    r"\b(?:mostly|mainly|primarily)\s+(?P<work>[^.;\n]{8,160})(?=[.;\n]|$)",
+    re.IGNORECASE,
+)
+_AROUND_LOCATION_PATTERN = re.compile(
+    r"\b(?:around|across|in)\s+(?P<location>Auckland|Wellington|Christchurch|Hamilton|"
+    r"Tauranga|Dunedin|Queenstown|[A-Z][A-Za-z'’\- ]{2,40})"
+    r"(?=[.;,\n]|$)",
+    re.IGNORECASE,
+)
 _CORRECTION_PATTERN = re.compile(
     r"\b(correction|actually|instead|no longer|now|previous|correct that)\b",
     re.IGNORECASE,
@@ -357,6 +372,55 @@ class WorkingUnderstandingRuntime:
                 source=source,
                 occurred_at=occurred_at,
                 task_scope="cash_flow",
+                correction=correction,
+            )
+
+        if _SPENDING_DECISION_PATTERN.search(content):
+            self._record_explicit_fact(
+                workspace_id=workspace_id,
+                subject_entity_id=business_entity_id,
+                axis=QuestionAxis.WHO,
+                predicate="business.spending_decision_maker",
+                scope_key="business:spending_decision_maker",
+                object_text="Owner makes day-to-day spending calls",
+                value={"role": "owner", "scope": "day_to_day_spending"},
+                source=source,
+                occurred_at=occurred_at,
+                task_scope="business_profile",
+                correction=correction,
+            )
+
+        for match in _WORK_TYPE_PATTERN.finditer(content):
+            work = _clean_phrase(match.group("work"))
+            if len(work) < 8:
+                continue
+            self._record_explicit_fact(
+                workspace_id=workspace_id,
+                subject_entity_id=business_entity_id,
+                axis=QuestionAxis.WHAT,
+                predicate="business.primary_work",
+                scope_key="business:primary_work",
+                object_text=work,
+                value=work,
+                source=source,
+                occurred_at=occurred_at,
+                task_scope="business_profile",
+                correction=correction,
+            )
+
+        for match in _AROUND_LOCATION_PATTERN.finditer(content):
+            location = _clean_phrase(match.group("location"))
+            self._record_explicit_fact(
+                workspace_id=workspace_id,
+                subject_entity_id=business_entity_id,
+                axis=QuestionAxis.WHERE,
+                predicate="business.operates_near",
+                scope_key="business:operates_near",
+                object_text=location,
+                value=location,
+                source=source,
+                occurred_at=occurred_at,
+                task_scope="business_profile",
                 correction=correction,
             )
 

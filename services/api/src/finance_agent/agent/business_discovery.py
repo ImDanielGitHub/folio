@@ -159,12 +159,15 @@ def next_discovery_prompt(
 ) -> tuple[str, str] | None:
     """Return (axis, prompt) for the highest-value unanswered profile gap."""
 
-    asked = {prompt.strip().casefold() for prompt in asked_prompts if prompt.strip()}
+    asked_blobs = tuple(
+        text.strip().casefold() for text in asked_prompts if isinstance(text, str) and text.strip()
+    )
     explicit = _explicit_axes(working_understanding)
     for axis, _label, prompt in _GAP_PROMPTS:
         if axis in explicit:
             continue
-        if prompt.casefold() in asked:
+        needle = prompt.casefold()
+        if any(needle in blob for blob in asked_blobs):
             continue
         return axis, prompt
     return None
@@ -180,16 +183,18 @@ def decide_business_discovery(
     asked_at,
     question_id: str,
     asked_prompts: Sequence[str] = (),
+    just_answered_question: bool = False,
 ) -> DiscoveryDecision:
     """Choose at most one clarifying business question.
 
     Prefer asking when:
     - the owner asked a general business question tools cannot fully answer, or
     - a read just finished and the owner profile is still thin.
-    Never ask during/after a write, or when a question is already open.
+    Never ask during/after a write, when a question is already open, or on the
+    immediate turn that answered the previous question.
     """
 
-    if has_active_question or had_committed_write:
+    if has_active_question or had_committed_write or just_answered_question:
         return DiscoveryDecision(question=None, reason="blocked", thin=False)
 
     thin = profile_is_thin(working_understanding)
