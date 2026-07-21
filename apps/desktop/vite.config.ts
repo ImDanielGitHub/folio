@@ -14,6 +14,9 @@ export default defineConfig({
         target: "http://127.0.0.1:8787",
         changeOrigin: false,
         rewrite: (path) => path.replace(/^\/api/, ""),
+        // Local LM Studio turns can take 1–2 minutes; default proxy idle timeout aborts demos.
+        timeout: 180_000,
+        proxyTimeout: 180_000,
       },
     },
   },

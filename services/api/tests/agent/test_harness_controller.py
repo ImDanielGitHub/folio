@@ -104,10 +104,21 @@ class FakeFinanceCore:
         self.write_actions = actions
         return (
             FinanceServiceResult(
+                "action_claim_fixture",
+                "record_business_claim",
+                "completed",
+                evidence_ids=("evd_koru_owner_claim_mitre10",),
+            ),
+            FinanceServiceResult(
                 "action_rule_fixture",
                 "create_classification_rule",
                 "completed",
-                evidence_ids=("evd_koru_mitre10_row",),
+                data={
+                    "event": {
+                        "scopeJson": {"transactionIds": ["txn_koru_006"]},
+                    }
+                },
+                evidence_ids=("evd_koru_mitre10_row", "evd_koru_owner_claim_mitre10"),
                 event_id="evt_koru_rule_mitre10",
             ),
         )
@@ -226,6 +237,12 @@ async def test_fixture_controller_executes_correction_and_commits_receipt() -> N
     assert sink.receipts == [result.work_receipt]
     stored = conversations.get_frame("thr_koru_studio_main")
     assert stored.claims[-1].basis.value == "explicit"
+    lowered = result.narrative.lower()
+    assert "thanks" not in lowered
+    assert "kept that context" not in lowered
+    assert "mitre 10" in lowered
+    assert "rule" in lowered
+    assert "evidence" in lowered or "undo" in lowered
 
 
 @pytest.mark.asyncio
