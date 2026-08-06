@@ -54,9 +54,38 @@ jobs:
         run: uv sync --project services/api --frozen
 
       - name: Verify safe lint fixes are committed
+        id: lint-fix
         run: |
           pnpm lint:fix
-          git diff --exit-code
+          if ! git diff --quiet; then
+            git diff --binary > ruff-fixes.patch
+            exit 1
+          fi
+
+      - name: Upload safe lint fixes
+        if: failure() && steps.lint-fix.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ruff-fixes
+          if-no-files-found: error
+          path: |
+            ruff-fixes.patch
+            services/api/src/finance_agent/api/routes/router.py
+            services/api/tests/agent/test_harness_controller.py
+            services/api/tests/agent/test_routes_sse.py
+            services/api/tests/api/test_http_security.py
+            services/api/tests/connectors/test_akahu_fixture.py
+            services/api/tests/connectors/test_akahu_live.py
+            services/api/tests/connectors/test_plaid_fixture.py
+            services/api/tests/connectors/test_plaid_live.py
+            services/api/tests/connectors/test_telegram.py
+            services/api/tests/finance/test_bank_csv_ingest.py
+            services/api/tests/integration/test_golden_api.py
+            services/api/tests/integration/test_working_understanding_continuity.py
+            services/api/tests/models/test_lm_studio.py
+            services/api/tests/models/test_model_configuration.py
+            services/api/tests/models/test_narrative_guard.py
+            services/api/tests/storage/test_knowledge.py
 
       - name: Run the repository verification gate
         run: pnpm verify
