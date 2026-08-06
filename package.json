@@ -16,6 +16,7 @@
     "dev:electron": "pnpm --filter @folio/desktop dev:electron",
     "contracts:check": "uv run --project services/api python scripts/contracts_check.py",
     "lint": "uv run --project services/api ruff check --config services/api/pyproject.toml services/api/src services/api/tests",
+    "lint:fix": "uv run --project services/api ruff check --fix --config services/api/pyproject.toml services/api/src services/api/tests",
     "typecheck": "uv run --project services/api mypy --config-file services/api/pyproject.toml services/api/src/finance_agent && pnpm --filter @folio/desktop typecheck",
     "test:python": "uv run --project services/api pytest -q services/api/tests",
     "test": "pnpm contracts:check && pnpm test:python && pnpm --filter @folio/desktop typecheck",

@@ -53,5 +53,10 @@ jobs:
       - name: Install Python dependencies
         run: uv sync --project services/api --frozen
 
+      - name: Verify safe lint fixes are committed
+        run: |
+          pnpm lint:fix
+          git diff --exit-code
+
       - name: Run the repository verification gate
         run: pnpm verify
