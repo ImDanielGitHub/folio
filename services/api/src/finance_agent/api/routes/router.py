@@ -13,6 +13,7 @@ from fastapi import (
     Form,
     Header,
     HTTPException,
+    Path,
     Query,
     UploadFile,
 )
@@ -20,8 +21,27 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from finance_agent.agent.events import SequenceGap, format_sse
+from finance_agent.api.http_security import (
+    IDENTIFIER_MAX_LENGTH,
+    IDENTIFIER_MIN_LENGTH,
+    IDENTIFIER_PATTERN,
+    MAX_CSV_BYTES,
+    UploadTooLarge,
+    content_disposition,
+    read_upload_with_limit,
+)
 from finance_agent.api.routes.dependencies import RouteServices, get_route_services
 from finance_agent.connectors.base import ConnectorError
+
+
+PathIdentifier = Annotated[
+    str,
+    Path(
+        min_length=IDENTIFIER_MIN_LENGTH,
+        max_length=IDENTIFIER_MAX_LENGTH,
+        pattern=IDENTIFIER_PATTERN,
+    ),
+]
 
 
 class RequestModel(BaseModel):
@@ -29,7 +49,13 @@ class RequestModel(BaseModel):
 
 
 class DemoResetRequest(RequestModel):
-    workspace_id: str = Field(default="ws_koru_studio", alias="workspaceId")
+    workspace_id: str = Field(
+        default="ws_koru_studio",
+        alias="workspaceId",
+        min_length=IDENTIFIER_MIN_LENGTH,
+        max_length=IDENTIFIER_MAX_LENGTH,
+        pattern=IDENTIFIER_PATTERN,
+    )
 
 
 class TelegramFixtureRequest(RequestModel):
@@ -61,22 +87,47 @@ class PlaidSyncRequest(RequestModel):
 
 
 class DailyCloseRequest(RequestModel):
-    workspace_id: str = Field(alias="workspaceId")
+    workspace_id: str = Field(
+        alias="workspaceId",
+        min_length=IDENTIFIER_MIN_LENGTH,
+        max_length=IDENTIFIER_MAX_LENGTH,
+        pattern=IDENTIFIER_PATTERN,
+    )
     idempotency_key: str | None = Field(
         default=None, alias="idempotencyKey", max_length=160
     )
 
 
 class OwnerTurnRequest(RequestModel):
-    workspace_id: str = Field(alias="workspaceId")
-    turn_id: str = Field(alias="turnId")
+    workspace_id: str = Field(
+        alias="workspaceId",
+        min_length=IDENTIFIER_MIN_LENGTH,
+        max_length=IDENTIFIER_MAX_LENGTH,
+        pattern=IDENTIFIER_PATTERN,
+    )
+    turn_id: str = Field(
+        alias="turnId",
+        min_length=IDENTIFIER_MIN_LENGTH,
+        max_length=IDENTIFIER_MAX_LENGTH,
+        pattern=IDENTIFIER_PATTERN,
+    )
     content: str = Field(min_length=1, max_length=64_000)
     mode: str = Field(pattern=r"^(local|hybrid|cloud)$")
 
 
 class UndoRequest(RequestModel):
-    request_id: str = Field(alias="requestId")
-    event_id: str = Field(alias="eventId")
+    request_id: str = Field(
+        alias="requestId",
+        min_length=IDENTIFIER_MIN_LENGTH,
+        max_length=IDENTIFIER_MAX_LENGTH,
+        pattern=IDENTIFIER_PATTERN,
+    )
+    event_id: str = Field(
+        alias="eventId",
+        min_length=IDENTIFIER_MIN_LENGTH,
+        max_length=IDENTIFIER_MAX_LENGTH,
+        pattern=IDENTIFIER_PATTERN,
+    )
     actor: str = Field(pattern=r"^owner$")
     reason: str = Field(min_length=1, max_length=240)
 
@@ -101,17 +152,26 @@ def create_router() -> APIRouter:
     @router.post("/v1/ingest/csv")
     async def ingest_csv(
         services: Services,
-        workspace_id: Annotated[str, Form(alias="workspaceId")],
+        workspace_id: Annotated[
+            str,
+            Form(
+                alias="workspaceId",
+                min_length=IDENTIFIER_MIN_LENGTH,
+                max_length=IDENTIFIER_MAX_LENGTH,
+                pattern=IDENTIFIER_PATTERN,
+            ),
+        ],
         file: Annotated[UploadFile, File()],
     ) -> dict[str, object]:
-        content = await file.read()
-        if not content:
-            raise HTTPException(status_code=422, detail="CSV file is empty")
-        if len(content) > 10_000_000:
-            raise HTTPException(status_code=413, detail="CSV exceeds the 10 MB limit")
         filename = file.filename or "source.csv"
         if not filename.lower().endswith(".csv"):
             raise HTTPException(status_code=422, detail="source file must use a .csv name")
+        try:
+            content = await read_upload_with_limit(file, max_bytes=MAX_CSV_BYTES)
+        except UploadTooLarge as exc:
+            raise HTTPException(status_code=413, detail="CSV exceeds the 10 MB limit") from exc
+        if not content:
+            raise HTTPException(status_code=422, detail="CSV file is empty")
         return dict(
             await services.ingest_csv(
                 workspace_id=workspace_id,
@@ -138,9 +198,7 @@ def create_router() -> APIRouter:
         services: Services,
     ) -> dict[str, object]:
         payload = body.model_dump(by_alias=True, exclude_none=True)
-        return dict(
-            await services.ingest_akahu_fixture(payload=payload or None)
-        )
+        return dict(await services.ingest_akahu_fixture(payload=payload or None))
 
     @router.post("/v1/connectors/akahu/sync")
     async def sync_akahu(
@@ -167,9 +225,7 @@ def create_router() -> APIRouter:
         services: Services,
     ) -> dict[str, object]:
         payload = body.model_dump(by_alias=True, exclude_none=True)
-        return dict(
-            await services.ingest_plaid_fixture(payload=payload or None)
-        )
+        return dict(await services.ingest_plaid_fixture(payload=payload or None))
 
     @router.post("/v1/connectors/plaid/link-token")
     async def create_plaid_link_token(services: Services) -> dict[str, object]:
@@ -207,10 +263,13 @@ def create_router() -> APIRouter:
 
     @router.get("/v1/jobs/{run_id}/events")
     async def run_events(
-        run_id: str,
+        run_id: PathIdentifier,
         services: Services,
         after_sequence: Annotated[int | None, Query(alias="afterSequence", ge=0)] = None,
-        last_event_id: Annotated[str | None, Header(alias="Last-Event-ID")] = None,
+        last_event_id: Annotated[
+            str | None,
+            Header(alias="Last-Event-ID", max_length=32),
+        ] = None,
     ) -> Response:
         resume = after_sequence
         if resume is None and last_event_id:
@@ -218,8 +277,14 @@ def create_router() -> APIRouter:
                 resume = int(last_event_id)
             except ValueError as exc:
                 raise HTTPException(
-                    status_code=400, detail="Last-Event-ID must be a numeric sequence"
+                    status_code=400,
+                    detail="Last-Event-ID must be a non-negative numeric sequence",
                 ) from exc
+            if resume < 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Last-Event-ID must be a non-negative numeric sequence",
+                )
         resume = resume or 0
         try:
             events = await services.read_events(run_id=run_id, after_sequence=resume)
@@ -258,7 +323,7 @@ def create_router() -> APIRouter:
 
     @router.post("/v1/threads/{thread_id}/turns", status_code=202)
     async def submit_turn(
-        thread_id: str,
+        thread_id: PathIdentifier,
         body: OwnerTurnRequest,
         services: Services,
     ) -> dict[str, object]:
@@ -274,14 +339,14 @@ def create_router() -> APIRouter:
 
     @router.get("/v1/workspaces/{workspace_id}/snapshot")
     async def workspace_snapshot(
-        workspace_id: str,
+        workspace_id: PathIdentifier,
         services: Services,
     ) -> dict[str, object]:
         return dict(await services.workspace_snapshot(workspace_id))
 
     @router.post("/v1/events/{event_id}/undo")
     async def undo_event(
-        event_id: str,
+        event_id: PathIdentifier,
         body: UndoRequest,
         services: Services,
     ) -> dict[str, object]:
@@ -300,13 +365,13 @@ def create_router() -> APIRouter:
         )
 
     @router.get("/v1/artifacts/{artifact_id}")
-    async def artifact(artifact_id: str, services: Services) -> Response:
+    async def artifact(artifact_id: PathIdentifier, services: Services) -> Response:
         value = await services.artifact(artifact_id)
         return Response(
             content=value.content,
             media_type=value.media_type,
             headers={
-                "Content-Disposition": f'inline; filename="{value.filename}"',
+                "Content-Disposition": content_disposition(value.filename),
                 "ETag": f'"{value.content_hash}"',
             },
         )
@@ -322,8 +387,24 @@ def create_router() -> APIRouter:
     @router.get("/v1/diagnostics/working-understanding")
     async def working_understanding_diagnostics(
         services: Services,
-        workspace_id: Annotated[str, Query(alias="workspaceId")],
-        run_id: Annotated[str | None, Query(alias="runId")] = None,
+        workspace_id: Annotated[
+            str,
+            Query(
+                alias="workspaceId",
+                min_length=IDENTIFIER_MIN_LENGTH,
+                max_length=IDENTIFIER_MAX_LENGTH,
+                pattern=IDENTIFIER_PATTERN,
+            ),
+        ],
+        run_id: Annotated[
+            str | None,
+            Query(
+                alias="runId",
+                min_length=IDENTIFIER_MIN_LENGTH,
+                max_length=IDENTIFIER_MAX_LENGTH,
+                pattern=IDENTIFIER_PATTERN,
+            ),
+        ] = None,
     ) -> dict[str, object]:
         return dict(
             await services.working_understanding_diagnostics(
