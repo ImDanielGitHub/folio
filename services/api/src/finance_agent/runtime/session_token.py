@@ -42,7 +42,7 @@ def ensure_session_token(path: Path, supplied: str | None) -> tuple[str, bool]:
     if supplied is not None and supplied.strip():
         return _validate_token(supplied), False
 
-    path = path.expanduser().resolve()
+    path = path.expanduser().absolute()
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     try:
         path.parent.chmod(0o700)
