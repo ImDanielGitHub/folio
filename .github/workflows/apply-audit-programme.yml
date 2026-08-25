@@ -42,7 +42,7 @@ jobs:
           version: "0.10.0"
           enable-cache: true
       - name: Apply deterministic transformations
-        run: python scripts/apply_audit_programme_v2.py
+        run: python scripts/apply_audit_programme_v3.py
       - name: Install dependencies
         run: |
           pnpm install --frozen-lockfile
@@ -55,6 +55,7 @@ jobs:
         run: |
           rm -f scripts/apply_audit_programme.py
           rm -f scripts/apply_audit_programme_v2.py
+          rm -f scripts/apply_audit_programme_v3.py
           rm -f .github/workflows/apply-audit-programme.yml
       - name: Commit verified programme slice
         run: |
