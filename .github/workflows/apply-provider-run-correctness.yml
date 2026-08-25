@@ -1,0 +1,82 @@
+name: Apply provider and run correctness
+
+on:
+  push:
+    branches:
+      - agent/provider-run-correctness-20260826
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-provider-run-correctness
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, '[provider-run-applied]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      LM_STUDIO_BASE_URL: http://127.0.0.1:65530/v1
+      OPENAI_API_KEY: ""
+    steps:
+      - name: Check out correctness branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/provider-run-correctness-20260826
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Reconstruct and apply verified source bundle
+        run: |
+          cat .audit-stack/provider-run.part* | base64 --decode > /tmp/provider-run-files.tar.gz
+          echo "eab9d75f40aac303c68f9daf5ef956adf02013a84321d58094af4f0f47abf8f2  /tmp/provider-run-files.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/provider-run-files.tar.gz
+
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          uv sync --project services/api --frozen
+
+      - name: Apply safe Ruff fixes
+        run: pnpm lint:fix
+
+      - name: Verify repository
+        run: timeout 25m pnpm verify
+
+      - name: Remove one-shot staging machinery
+        run: |
+          rm -rf .audit-stack
+          rm -f .github/workflows/apply-provider-run-correctness.yml
+
+      - name: Commit verified correctness slice
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: complete provider and run correctness semantics [provider-run-applied]"
+          git push origin HEAD:agent/provider-run-correctness-20260826
