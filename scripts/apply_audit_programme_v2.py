@@ -62,7 +62,28 @@ def corrected_migration() -> None:
     programme.write(path, prefix + migration + content[closing:])
 
 
+_original_harden_api_routes = programme.harden_api_routes
+
+
+def corrected_harden_api_routes() -> None:
+    """Normalise the one inline route signature before applying the base transform."""
+
+    path = "services/api/src/finance_agent/api/routes/router.py"
+    content = programme.read(path)
+    inline = "    async def artifact(artifact_id: str, services: Services) -> Response:\n"
+    multiline = (
+        "    async def artifact(\n"
+        "        artifact_id: str,\n"
+        "        services: Services,\n"
+        "    ) -> Response:\n"
+    )
+    if inline in content:
+        programme.write(path, content.replace(inline, multiline, 1))
+    _original_harden_api_routes()
+
+
 programme.add_material_state_migration = corrected_migration
+programme.harden_api_routes = corrected_harden_api_routes
 programme.main()
 
 # Stage timing must use the real run clock at both boundaries.
