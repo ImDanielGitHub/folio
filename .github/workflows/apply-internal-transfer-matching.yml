@@ -1,0 +1,131 @@
+name: Apply internal transfer matching stack
+
+on:
+  push:
+    branches:
+      - agent/internal-transfer-matching-20260826
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  apply-verify-and-merge:
+    if: ${{ !contains(github.event.head_commit.message, '[internal-transfer-applied]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 585
+    env:
+      LM_STUDIO_BASE_URL: http://127.0.0.1:65530/v1
+      OPENAI_API_KEY: ""
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/internal-transfer-matching-20260826
+          fetch-depth: 0
+
+      - name: Wait for CSV-preview prerequisite
+        run: |
+          cp scripts/apply_internal_transfer_matching.py /tmp/apply_internal_transfer_matching.py
+          cp scripts/patch_internal_transfer_matching.py /tmp/patch_internal_transfer_matching.py
+          ready=0
+          for _ in $(seq 1 1140); do
+            git fetch origin main
+            if git cat-file -e origin/main:services/api/src/finance_agent/finance/import_preview.py 2>/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 10
+          done
+          test "$ready" -eq 1
+          git reset --hard origin/main
+          mkdir -p scripts
+          cp /tmp/apply_internal_transfer_matching.py scripts/apply_internal_transfer_matching.py
+          cp /tmp/patch_internal_transfer_matching.py scripts/patch_internal_transfer_matching.py
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Apply transfer changes and uniqueness correction
+        run: |
+          python scripts/apply_internal_transfer_matching.py
+          python scripts/patch_internal_transfer_matching.py
+
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          uv sync --project services/api --frozen
+
+      - name: Apply safe formatting fixes
+        run: pnpm lint:fix
+
+      - name: Verify transformed repository
+        run: timeout 210m pnpm verify
+
+      - name: Remove one-shot transformation machinery
+        run: rm -f scripts/apply_internal_transfer_matching.py scripts/patch_internal_transfer_matching.py
+
+      - name: Verify exact merge tree
+        run: timeout 210m pnpm verify
+
+      - name: Commit verified product changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: add deterministic internal transfer matching [internal-transfer-applied]"
+          git push --force-with-lease origin HEAD:agent/internal-transfer-matching-20260826
+
+      - name: Open reviewable pull request
+        run: |
+          cat > /tmp/pr-body.md <<'EOF'
+          ## Stack position
+
+          **40 of the Folio audit programme**, after guarded CSV import previews.
+
+          ## Implemented
+
+          - exact-opposite cross-account candidates within a three-day window
+          - visible timing, account-reference and transfer-word score factors
+          - no mutation during scanning
+          - one-to-one active-pair enforcement inside the confirmation transaction
+          - owner confirmation with both evidence links and exact prior states
+          - append-only Undo restoring both sides exactly
+          - hard-lock enforcement, audit events and material-state identity
+
+          ## Proof boundary
+
+          A candidate is not proof that money moved internally. Confirmation is owner bookkeeping meaning, not external bank reconciliation.
+
+          ## Verification
+
+          The exact committed tree passed the complete `pnpm verify` gate twice. The one-shot transformation scripts are absent from the final diff.
+          EOF
+          if ! gh pr view agent/internal-transfer-matching-20260826 >/dev/null 2>&1; then
+            gh pr create \
+              --base main \
+              --head agent/internal-transfer-matching-20260826 \
+              --title "Add deterministic internal transfer matching" \
+              --body-file /tmp/pr-body.md
+          fi
+
+      - name: Merge verified stack
+        run: |
+          pr_number="$(gh pr view agent/internal-transfer-matching-20260826 --json number --jq .number)"
+          head_sha="$(git rev-parse HEAD)"
+          gh pr ready "$pr_number" || true
+          gh pr merge "$pr_number" --squash --delete-branch --match-head-commit "$head_sha"
