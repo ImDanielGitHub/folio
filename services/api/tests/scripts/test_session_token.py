@@ -4,7 +4,6 @@ import stat
 from pathlib import Path
 
 import pytest
-
 from scripts.session_token import ensure_session_token
 
 
