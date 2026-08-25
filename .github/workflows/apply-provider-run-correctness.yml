@@ -82,8 +82,26 @@ jobs:
           uv run --project services/api ruff check --fix --unsafe-fixes --config services/api/pyproject.toml services/api/src services/api/tests
           git diff --check
 
-      - name: Verify repository
-        run: timeout 25m pnpm verify
+      - name: Verify contracts
+        run: pnpm contracts:check
+
+      - name: Verify lint
+        run: pnpm lint
+
+      - name: Verify types
+        run: pnpm typecheck
+
+      - name: Verify Python tests
+        run: pnpm test:python
+
+      - name: Verify Electron tests
+        run: pnpm test:desktop
+
+      - name: Verify production build
+        run: pnpm build
+
+      - name: Verify offline model evaluations
+        run: pnpm eval:offline
 
       - name: Remove one-shot staging machinery
         run: |
