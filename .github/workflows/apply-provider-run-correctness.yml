@@ -55,21 +55,21 @@ jobs:
         run: |
           wc -c .audit-stack/provider-run.part*
           cat > /tmp/provider-run-parts.sha256 <<'EOF'
-          9275510bd4f3da0e5afdb014bb52a0d031b15b067f2ec70dcdc10795eb8c3164  .audit-stack/provider-run.part00
-          492675c8f1a76cabec311817e79b7e5d6bf3ca72cadc83856f3248f71bdf8fc5  .audit-stack/provider-run.part01
-          5826fcc52a91db2bb2c31a15b2443caa7e03e22c9f44139501173eb341428165  .audit-stack/provider-run.part02
-          07adc429e0706fbbaeec4e7c5a5652d6bf9b99c991657b46379f2b1f780facd9  .audit-stack/provider-run.part03
-          38f10e80085e68d393924125238014af80ea380a052e7b0263f03c6fdd11cae  .audit-stack/provider-run.part04
-          9664b8757bd0726119a8fa679fcd07c11434caaa52e65be88d8983caa0a01991  .audit-stack/provider-run.part05
-          4fc24d16c09c0171196b96dfb25f94a33337c8145834dd515d61e1eb2f9bfb7f  .audit-stack/provider-run.part06
-          8e5fa7838dafd4a5c2385e533ffae24bab959a644171301bd918506a343b5609  .audit-stack/provider-run.part07
+          8a3ba4a6d2ffc2e2f76fd4fb0311b4dab5007aa856b8da4927f8e1f5e04f785a  .audit-stack/provider-run.part00
+          2f6405157f71628a902d8f39c8a0f61400001678dafdb3360bfd29f3769e574c  .audit-stack/provider-run.part01
+          8071bec42990971f7afdd6f4241f020d8e11046e8b42ade0528c328531942af6  .audit-stack/provider-run.part02
+          200ccc7e8d365d18c90fb3d300e57ff82f0aaffc12276eefc2ee76f2798dfa17  .audit-stack/provider-run.part03
+          dc45635a3445218e9ddf0d77f0b2e24b36714dd7929ea8174a3c4612ed9b36eb  .audit-stack/provider-run.part04
+          9149a533a589a54589558631f8914eb8972d37ecfe030355ea7c8d50c705924b  .audit-stack/provider-run.part05
+          d05ae71f06b1cea5d276248dd6ce1e68eb16a7da5e209406bb915fa8d86dd39c  .audit-stack/provider-run.part06
+          8e4cbf092bb74943c85a6f689571913208314d9597f1f1f39e8fa42d785617f3  .audit-stack/provider-run.part07
           EOF
           sha256sum -c /tmp/provider-run-parts.sha256
 
       - name: Reconstruct and apply verified source bundle
         run: |
           cat .audit-stack/provider-run.part* | base64 --decode > /tmp/provider-run-files.tar.gz
-          echo "eab9d75f40aac303c68f9daf5ef956adf02013a84321d58094af4f0f47abf8f2  /tmp/provider-run-files.tar.gz" | sha256sum -c -
+          echo "833cc9b37d5fe2e14b0699bf7f276d8c79bcde213106333f498f250ed09558bb  /tmp/provider-run-files.tar.gz" | sha256sum -c -
           tar -xzf /tmp/provider-run-files.tar.gz
 
       - name: Install dependencies
