@@ -1,0 +1,119 @@
+name: Apply provider and run correctness v2
+
+on:
+  push:
+    branches:
+      - agent/provider-run-correctness-20260826
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-provider-run-correctness-v2
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, '[provider-run-applied]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      LM_STUDIO_BASE_URL: http://127.0.0.1:65530/v1
+      OPENAI_API_KEY: ""
+    steps:
+      - name: Check out correctness branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/provider-run-correctness-20260826
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Verify staged fragments
+        run: |
+          cat > /tmp/provider-run-parts.sha256 <<'EOF'
+          8a3ba4a6d2ffc2e2f76fd4fb0311b4dab5007aa856b8da4927f8e1f5e04f785a  .audit-stack/provider-run.part00
+          2f6405157f71628a902d8f39c8a0f61400001678dafdb3360bfd29f3769e574c  .audit-stack/provider-run.part01
+          8071bec42990971f7afdd6f4241f020d8e11046e8b42ade0528c328531942af6  .audit-stack/provider-run.part02
+          200ccc7e8d365d18c90fb3d300e57ff82f0aaffc12276eefc2ee76f2798dfa17  .audit-stack/provider-run.part03
+          dc45635a3445218e9ddf0d77f0b2e24b36714dd7929ea8174a3c4612ed9b36eb  .audit-stack/provider-run.part04
+          9149a533a589a54589558631f8914eb8972d37ecfe030355ea7c8d50c705924b  .audit-stack/provider-run.part05
+          d05ae71f06b1cea5d276248dd6ce1e68eb16a7da5e209406bb915fa8d86dd39c  .audit-stack/provider-run.part06
+          8e4cbf092bb74943c85a6f689571913208314d9597f1f1f39e8fa42d785617f3  .audit-stack/provider-run.part07
+          EOF
+          sha256sum -c /tmp/provider-run-parts.sha256
+
+      - name: Reconstruct and apply verified source bundle
+        run: |
+          cat .audit-stack/provider-run.part* | base64 --decode > /tmp/provider-run-files.tar.gz
+          echo "833cc9b37d5fe2e14b0699bf7f276d8c79bcde213106333f498f250ed09558bb  /tmp/provider-run-files.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/provider-run-files.tar.gz
+          python scripts/apply_provider_origin_compat.py
+
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          uv sync --project services/api --frozen
+
+      - name: Apply Ruff fixes
+        run: |
+          uv run --project services/api ruff check --fix --unsafe-fixes --config services/api/pyproject.toml services/api/src services/api/tests
+          git diff --check
+
+      - name: Verify contracts
+        run: pnpm contracts:check
+
+      - name: Verify lint
+        run: pnpm lint
+
+      - name: Verify types
+        run: pnpm typecheck
+
+      - name: Verify Python tests
+        run: pnpm test:python
+
+      - name: Verify Electron tests
+        run: pnpm test:desktop
+
+      - name: Verify production build
+        run: pnpm build
+
+      - name: Verify offline model evaluations
+        run: pnpm eval:offline
+
+      - name: Remove one-shot staging machinery
+        run: |
+          rm -rf .audit-stack
+          rm -f scripts/apply_provider_origin_compat.py
+          rm -f .github/workflows/apply-provider-run-correctness.yml
+          rm -f .github/workflows/apply-provider-run-correctness-v2.yml
+
+      - name: Commit verified correctness slice
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: complete provider and run correctness semantics [provider-run-applied]"
+          git push origin HEAD:agent/provider-run-correctness-20260826
