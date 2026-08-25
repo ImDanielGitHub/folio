@@ -46,9 +46,10 @@ from finance_agent.connectors.akahu import (
     normalise_accounts,
     normalise_transactions,
 )
-from finance_agent.connectors.base import ConnectorError
+from finance_agent.connectors.base import ConnectorError, ConnectorErrorCode
 from finance_agent.connectors.plaid import (
     PlaidReadOnlyAdapter,
+    PlaidRemovedTransaction,
 )
 from finance_agent.connectors.plaid import (
     normalise_accounts as normalise_plaid_accounts,
@@ -56,9 +57,9 @@ from finance_agent.connectors.plaid import (
 from finance_agent.connectors.plaid import (
     normalise_transactions as normalise_plaid_transactions,
 )
-from finance_agent.connectors.plaid_fixture import PlaidFixtureIngestor
+from finance_agent.connectors.provider_events import record_plaid_provider_events
 from finance_agent.finance import FinanceEngine, FinanceStateError, FinanceTotals
-from finance_agent.finance.service import PLAID_ACCOUNT_ID, THREAD_ID, WORKSPACE_ID
+from finance_agent.finance.service import THREAD_ID, WORKSPACE_ID
 from finance_agent.finance.surfaces import (
     living_brief_surface,
 )
@@ -80,7 +81,7 @@ AKAHU_MAPPING_VERSION = "akahu_live@1"
 AKAHU_MAX_PAGES = 100
 AKAHU_MAX_ITEMS = 20_000
 AKAHU_MAX_WINDOW_DAYS = 366
-PLAID_MAPPING_VERSION = "plaid_live@1"
+PLAID_MAPPING_VERSION = "plaid_live@2"
 PLAID_MAX_PAGES = 100
 PLAID_MAX_ITEMS = 20_000
 NEW_ZEALAND_TIME = ZoneInfo("Pacific/Auckland")
@@ -1352,202 +1353,93 @@ class LocalRouteServices:
         *,
         public_token: str | None = None,
     ) -> Mapping[str, object]:
-        """Exchange/create an access token ephemerally and commit settled USD rows."""
+        """Record a complete immutable Plaid lifecycle page without currency relabelling."""
 
         access_token = await self.plaid.resolve_access_token(public_token)
         account_items = await self.plaid.list_accounts(access_token=access_token)
         accounts = normalise_plaid_accounts(account_items)
         if not accounts:
-            raise ConnectorError("Plaid returned no accounts")
+            raise ConnectorError(
+                "Plaid returned no accounts",
+                code=ConnectorErrorCode.INVALID_RESPONSE,
+            )
 
-        transaction_items: list[Mapping[str, object]] = []
+        added_items: list[Mapping[str, object]] = []
+        modified_items: list[Mapping[str, object]] = []
+        removed_items: list[PlaidRemovedTransaction] = []
         cursor: str | None = None
+        seen_cursors: set[str] = set()
         for _ in range(PLAID_MAX_PAGES):
-            page_items, next_cursor, has_more = await self.plaid.sync_transactions(
+            page = await self.plaid.sync_transactions(
                 access_token=access_token,
                 cursor=cursor,
             )
-            transaction_items.extend(page_items)
-            if len(transaction_items) > PLAID_MAX_ITEMS:
-                raise ConnectorError("Plaid transaction sync exceeded the local item limit")
-            if not has_more or next_cursor is None:
+            added_items.extend(page.added)
+            modified_items.extend(page.modified)
+            removed_items.extend(page.removed)
+            item_count = len(added_items) + len(modified_items) + len(removed_items)
+            if item_count > PLAID_MAX_ITEMS:
+                raise ConnectorError(
+                    "Plaid transaction sync exceeded the local item limit",
+                    code=ConnectorErrorCode.LIMIT_EXCEEDED,
+                )
+            if not page.has_more:
                 break
-            cursor = next_cursor
+            if page.next_cursor is None:
+                raise ConnectorError(
+                    "Plaid pagination reported more pages without a cursor",
+                    code=ConnectorErrorCode.INVALID_RESPONSE,
+                )
+            if page.next_cursor in seen_cursors:
+                raise ConnectorError(
+                    "Plaid transaction pagination repeated a cursor",
+                    code=ConnectorErrorCode.REPEATED_CURSOR,
+                )
+            seen_cursors.add(page.next_cursor)
+            cursor = page.next_cursor
         else:
-            raise ConnectorError("Plaid transaction sync exceeded the page limit")
+            raise ConnectorError(
+                "Plaid transaction sync exceeded the page limit",
+                code=ConnectorErrorCode.LIMIT_EXCEEDED,
+            )
 
-        transactions = normalise_plaid_transactions(tuple(transaction_items), accounts)
+        added = normalise_plaid_transactions(tuple(added_items), accounts)
+        modified = normalise_plaid_transactions(tuple(modified_items), accounts)
         synced_at = _now().isoformat()
-        if any(account.currency != "NZD" for account in accounts):
-            primary = accounts[0]
-            existing_provider_references = {
-                str(row["provider_transaction_id"])
-                for row in self.store.fetch_all(
-                    """
-                    SELECT provider_transaction_id
-                    FROM provider_transaction_events
-                    WHERE workspace_id = ? AND provider = 'plaid'
-                      AND provider_account_id = ?
-                    """,
-                    (WORKSPACE_ID, primary.account_id or PLAID_ACCOUNT_ID),
-                )
-            }
-            new_transactions = tuple(
-                transaction
-                for transaction in transactions
-                if transaction.external_reference not in existing_provider_references
-            )
-            if not new_transactions:
-                self.working_understanding.ensure_current(workspace_id=WORKSPACE_ID)
-                return {
-                    "sourceItemId": None,
-                    "status": "no_new_transactions",
-                    "sourceSha256": None,
-                    "accountCount": len(accounts),
-                    "transactionCount": len(transactions),
-                    "rowCount": 0,
-                    "providerEventCount": 0,
-                    "providerCurrency": primary.currency,
-                    "ledgerCommitted": False,
-                    "quarantineReason": "workspace_currency_mismatch",
-                    "settledOnly": True,
-                    "liveSyncAttempted": True,
-                    "externalCallsMade": True,
-                }
-            payload = {
-                "account": {
-                    "name": primary.label,
-                    "maskedNumber": primary.mask or "",
-                    "currency": primary.currency,
-                },
-                "syncedAt": synced_at,
-                "transactions": [
-                    {
-                        "occurredOn": transaction.occurred_on,
-                        "description": transaction.description,
-                        "amountMinor": transaction.amount_minor,
-                        "externalReference": transaction.external_reference,
-                        "status": "posted",
-                    }
-                    for transaction in new_transactions
-                ],
-            }
-            async with self._lock:
-                imported = self.engine.ingest_plaid_fixture(
-                    payload,
-                    source_item_id=_stable_id(
-                        "src", "plaid_live", synced_at, primary.provider_id
-                    ),
-                    mapping_version=PLAID_MAPPING_VERSION,
-                    account_id=primary.account_id or PLAID_ACCOUNT_ID,
-                )
-                self.working_understanding.ensure_current(workspace_id=WORKSPACE_ID)
-            return {
-                "sourceItemId": imported.source_item_id,
-                "status": imported.status,
-                "sourceSha256": imported.digest,
-                "accountCount": len(accounts),
-                "transactionCount": len(transactions),
-                "rowCount": 0,
-                "providerEventCount": imported.row_count,
-                "providerCurrency": primary.currency,
-                "ledgerCommitted": False,
-                "quarantineReason": "workspace_currency_mismatch",
-                "settledOnly": True,
-                "liveSyncAttempted": True,
-                "externalCallsMade": True,
-            }
-
+        primary = accounts[0]
         async with self._lock:
-            with self.store.transaction() as connection:
-                for account in accounts:
-                    existing = connection.execute(
-                        "SELECT workspace_id FROM accounts WHERE account_id = ?",
-                        (account.account_id,),
-                    ).fetchone()
-                    if existing is not None and str(existing["workspace_id"]) != WORKSPACE_ID:
-                        raise ConnectorError(
-                            "Plaid account identity conflicts with another workspace"
-                        )
-                    connection.execute(
-                        """
-                        INSERT OR IGNORE INTO accounts(
-                            account_id, workspace_id, name, currency, created_at
-                        ) VALUES (?, ?, ?, 'NZD', ?)
-                        """,
-                        (
-                            account.account_id,
-                            WORKSPACE_ID,
-                            f"Plaid · {account.label}",
-                            synced_at,
-                        ),
-                    )
-                existing_references = {
-                    str(row["external_reference"])
-                    for row in connection.execute(
-                        """
-                        SELECT external_reference FROM source_rows
-                        WHERE mapping_version IN (?, ?)
-                        """,
-                        (PLAID_MAPPING_VERSION, PlaidFixtureIngestor.MAPPING_VERSION),
-                    )
-                }
-            new_transactions = tuple(
-                transaction
-                for transaction in transactions
-                if transaction.external_reference not in existing_references
-            )
-            if not new_transactions:
-                self.working_understanding.ensure_current(workspace_id=WORKSPACE_ID)
-                return {
-                    "sourceItemId": None,
-                    "status": "no_new_transactions",
-                    "sourceSha256": None,
-                    "accountCount": len(accounts),
-                    "transactionCount": len(transactions),
-                    "rowCount": 0,
-                    "settledOnly": True,
-                    "liveSyncAttempted": True,
-                    "externalCallsMade": True,
-                }
-
-            primary = accounts[0]
-            payload = {
-                "account": {
-                    "name": primary.label,
-                    "maskedNumber": primary.mask or "",
-                    "currency": "USD",
-                },
-                "syncedAt": synced_at,
-                "transactions": [
-                    {
-                        "occurredOn": transaction.occurred_on,
-                        "description": transaction.description,
-                        "amountMinor": transaction.amount_minor,
-                        "externalReference": transaction.external_reference,
-                        "status": "posted",
-                    }
-                    for transaction in new_transactions
-                ],
-            }
-            imported = self.engine.ingest_plaid_fixture(
-                payload,
-                source_item_id=_stable_id("src", "plaid_live", synced_at, primary.provider_id),
+            commit = record_plaid_provider_events(
+                self.store,
+                workspace_id=WORKSPACE_ID,
+                account_label=primary.label,
+                default_account_id=primary.account_id,
+                default_currency=primary.currency,
+                added=added,
+                modified=modified,
+                removed=tuple(removed_items),
+                recorded_at=synced_at,
                 mapping_version=PLAID_MAPPING_VERSION,
-                account_id=primary.account_id or PLAID_ACCOUNT_ID,
             )
             self.working_understanding.ensure_current(workspace_id=WORKSPACE_ID)
-            return {
-                "sourceItemId": imported.source_item_id,
-                "status": imported.status,
-                "sourceSha256": imported.digest,
-                "accountCount": len(accounts),
-                "transactionCount": len(transactions),
-                "rowCount": imported.row_count,
-                "settledOnly": True,
-                "liveSyncAttempted": True,
-                "externalCallsMade": True,
-            }
+
+        return {
+            "sourceItemId": commit.source_item_id,
+            "status": commit.status,
+            "sourceSha256": commit.source_sha256,
+            "accountCount": len(accounts),
+            "transactionCount": len(added) + len(modified) + len(removed_items),
+            "rowCount": 0,
+            "providerEventCount": commit.event_count,
+            "addedCount": commit.added_count,
+            "modifiedCount": commit.modified_count,
+            "removedCount": commit.removed_count,
+            "providerCurrency": primary.currency,
+            "ledgerCommitted": False,
+            "quarantineReason": "workspace_currency_mismatch",
+            "settledOnly": True,
+            "liveSyncAttempted": True,
+            "externalCallsMade": True,
+        }
 
     async def ingest_telegram_fixture(
         self,

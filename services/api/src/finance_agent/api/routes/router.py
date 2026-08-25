@@ -31,7 +31,7 @@ from finance_agent.api.http_security import (
     read_upload_with_limit,
 )
 from finance_agent.api.routes.dependencies import RouteServices, get_route_services
-from finance_agent.connectors.base import ConnectorError
+from finance_agent.connectors.base import ConnectorError, ConnectorErrorCode
 
 
 class RequestModel(BaseModel):
@@ -101,6 +101,18 @@ PathIdentifier = Annotated[
 ]
 
 Services = Annotated[RouteServices, Depends(get_route_services)]
+
+
+def connector_http_status(error: ConnectorError) -> int:
+    """Map stable connector codes to HTTP semantics without inspecting prose."""
+
+    if error.code in {ConnectorErrorCode.UNCONFIGURED, ConnectorErrorCode.CONFLICT}:
+        return 409
+    if error.code is ConnectorErrorCode.INVALID_REQUEST:
+        return 422
+    if error.code is ConnectorErrorCode.LIMIT_EXCEEDED:
+        return 429
+    return 502
 
 
 def create_router() -> APIRouter:
@@ -176,8 +188,9 @@ def create_router() -> APIRouter:
                 )
             )
         except ConnectorError as exc:
-            status = 409 if str(exc) == "Akahu is disabled or unconfigured" else 502
-            raise HTTPException(status_code=status, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=connector_http_status(exc), detail=str(exc)
+            ) from exc
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -196,8 +209,9 @@ def create_router() -> APIRouter:
         try:
             return dict(await services.create_plaid_link_token())
         except ConnectorError as exc:
-            status = 409 if "disabled or unconfigured" in str(exc) else 502
-            raise HTTPException(status_code=status, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=connector_http_status(exc), detail=str(exc)
+            ) from exc
 
     @router.post("/v1/connectors/plaid/sync")
     async def sync_plaid(
@@ -208,8 +222,9 @@ def create_router() -> APIRouter:
         try:
             return dict(await services.sync_plaid(public_token=body.public_token))
         except ConnectorError as exc:
-            status = 409 if "disabled or unconfigured" in str(exc) else 502
-            raise HTTPException(status_code=status, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=connector_http_status(exc), detail=str(exc)
+            ) from exc
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 

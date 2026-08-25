@@ -505,10 +505,15 @@ class PlaidReadOnlyAdapter:
                 "Plaid has_more must be a boolean",
                 code=ConnectorErrorCode.INVALID_RESPONSE,
             )
+        next_cursor = (
+            raw_cursor.strip()
+            if isinstance(raw_cursor, str) and raw_cursor.strip()
+            else None
+        )
         return PlaidSyncPage(
             added=added,
             modified=modified,
             removed=normalise_removed_transactions(removed_raw),
-            next_cursor=raw_cursor.strip() if isinstance(raw_cursor, str) and raw_cursor.strip() else None,
+            next_cursor=next_cursor,
             has_more=raw_has_more,
         )
