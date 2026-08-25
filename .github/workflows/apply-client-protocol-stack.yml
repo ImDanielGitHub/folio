@@ -1,0 +1,126 @@
+name: Apply client protocol stack
+
+on:
+  push:
+    branches:
+      - agent/client-protocol-20260826
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-client-protocol-stack
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, '[client-protocol-applied]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      LM_STUDIO_BASE_URL: http://127.0.0.1:65530/v1
+      OPENAI_API_KEY: ""
+    steps:
+      - name: Check out stack branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/client-protocol-20260826
+          fetch-depth: 0
+
+      - name: Preserve one-shot transformations
+        run: |
+          cp scripts/apply_problem_details_stack.py /tmp/apply_problem_details_stack.py
+          cp scripts/apply_desktop_protocol_stack.py /tmp/apply_desktop_protocol_stack.py
+
+      - name: Wait for provider correctness prerequisite on main
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 120); do
+            git fetch --prune origin main
+            if git cat-file -e origin/main:services/api/src/finance_agent/connectors/plaid_events.py 2>/dev/null; then
+              if git show origin/main:docs/AUDIT_PROGRAMME.md | grep -q "Stack 2"; then
+                echo "Provider correctness prerequisite is present on main."
+                exit 0
+              fi
+            fi
+            echo "Waiting for provider stack to merge; attempt $attempt/120"
+            sleep 15
+          done
+          echo "Timed out waiting for provider stack prerequisite"
+          exit 1
+
+      - name: Reset branch workspace to verified main
+        run: |
+          git reset --hard origin/main
+          git clean -fdx
+          FOLIO_ROOT="$GITHUB_WORKSPACE" python /tmp/apply_problem_details_stack.py
+          FOLIO_ROOT="$GITHUB_WORKSPACE" python /tmp/apply_desktop_protocol_stack.py
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          uv sync --project services/api --frozen
+
+      - name: Apply Ruff fixes
+        run: |
+          uv run --project services/api ruff check --fix --unsafe-fixes --config services/api/pyproject.toml services/api/src services/api/tests
+          git diff --check
+
+      - name: Verify contracts
+        run: pnpm contracts:check
+
+      - name: Verify lint
+        run: pnpm lint
+
+      - name: Verify types
+        run: pnpm typecheck
+
+      - name: Verify Python tests
+        run: pnpm test:python
+
+      - name: Verify desktop protocol and Electron tests
+        run: pnpm test:desktop
+
+      - name: Verify production build
+        run: pnpm build
+
+      - name: Verify offline model evaluations
+        run: pnpm eval:offline
+
+      - name: Remove one-shot transformation files
+        run: |
+          rm -f scripts/apply_problem_details_stack.py
+          rm -f scripts/apply_desktop_protocol_stack.py
+          rm -f .github/workflows/apply-client-protocol-stack.yml
+
+      - name: Commit verified client protocol stack
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: add typed client protocol and problem details [client-protocol-applied]"
+          git push --force-with-lease origin HEAD:agent/client-protocol-20260826
