@@ -1,16 +1,8 @@
 """Configuration-gated, read-only Plaid sandbox/Link seam.
 
 Credentials are process-injected, never persisted, and can only be sent to the
-pinned Plaid API hosts (sandbox by default). Provider payloads are normalised
-into exact USD cents before the finance importer is allowed to commit them.
-
-Link flow (current Plaid pattern):
-1. ``/link/token/create`` → temporary ``link_token`` for Plaid Link
-2. Link returns a ``public_token`` (or sandbox creates one without Link)
-3. ``/item/public_token/exchange`` → ephemeral ``access_token`` for this sync
-4. ``/transactions/sync`` → settled transaction pages
-
-Access tokens are not written to SQLite, evidence or receipts.
+pinned Plaid API hosts. Provider lifecycle pages are validated without silently
+dropping malformed items, then reduced to exact minor-unit records.
 """
 
 from __future__ import annotations
@@ -21,18 +13,18 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal, InvalidOperation
+from typing import cast
 from urllib.parse import urlparse
 
 import httpx
 
-from finance_agent.connectors.base import ConnectorError
+from finance_agent.connectors.base import ConnectorError, ConnectorErrorCode
 
 PLAID_HOSTS = {
     "sandbox": "https://sandbox.plaid.com",
     "development": "https://development.plaid.com",
     "production": "https://production.plaid.com",
 }
-# First Platypus Bank — standard Plaid sandbox institution for Transactions.
 SANDBOX_INSTITUTION_ID = "ins_109508"
 
 
@@ -110,6 +102,20 @@ class PlaidTransaction:
     pending: bool = False
 
 
+@dataclass(frozen=True, slots=True)
+class PlaidRemovedTransaction:
+    provider_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class PlaidSyncPage:
+    added: tuple[Mapping[str, object], ...]
+    modified: tuple[Mapping[str, object], ...]
+    removed: tuple[PlaidRemovedTransaction, ...]
+    next_cursor: str | None
+    has_more: bool
+
+
 def _stable_provider_id(prefix: str, value: str) -> str:
     digest = hashlib.sha256(f"plaid\0{value}".encode()).hexdigest()[:24]
     return f"{prefix}_{digest}"
@@ -120,7 +126,24 @@ def _required_text(item: Mapping[str, object], *keys: str) -> str:
         value = item.get(key)
         if isinstance(value, str) and value.strip():
             return value.strip()
-    raise ConnectorError(f"Plaid item is missing required {keys[0]}")
+    raise ConnectorError(
+        f"Plaid item is missing required {keys[0]}",
+        code=ConnectorErrorCode.INVALID_RESPONSE,
+    )
+
+
+def _mapping_items(value: object, label: str) -> tuple[Mapping[str, object], ...]:
+    if not isinstance(value, list):
+        raise ConnectorError(
+            f"Plaid {label} response did not contain a list",
+            code=ConnectorErrorCode.INVALID_RESPONSE,
+        )
+    if any(not isinstance(item, Mapping) for item in value):
+        raise ConnectorError(
+            f"Plaid {label} response contained a malformed item",
+            code=ConnectorErrorCode.INVALID_RESPONSE,
+        )
+    return tuple(cast(Mapping[str, object], item) for item in value)
 
 
 def normalise_accounts(items: tuple[Mapping[str, object], ...]) -> tuple[PlaidAccount, ...]:
@@ -131,7 +154,10 @@ def normalise_accounts(items: tuple[Mapping[str, object], ...]) -> tuple[PlaidAc
     for item in items:
         provider_id = _required_text(item, "account_id", "id")
         if provider_id in seen:
-            raise ConnectorError("Plaid returned a duplicate account id")
+            raise ConnectorError(
+                "Plaid returned a duplicate account id",
+                code=ConnectorErrorCode.INVALID_RESPONSE,
+            )
         seen.add(provider_id)
         currency = "USD"
         balances = item.get("balances")
@@ -140,7 +166,10 @@ def normalise_accounts(items: tuple[Mapping[str, object], ...]) -> tuple[PlaidAc
             if isinstance(iso, str) and iso.strip():
                 currency = iso.strip().upper()
         if currency != "USD":
-            raise ConnectorError("Folio currently supports USD Plaid accounts only")
+            raise ConnectorError(
+                "Folio currently supports USD Plaid accounts only",
+                code=ConnectorErrorCode.INVALID_RESPONSE,
+            )
         name = item.get("name") or item.get("official_name") or "Plaid account"
         if not isinstance(name, str) or not name.strip():
             name = "Plaid account"
@@ -162,7 +191,10 @@ def _description(item: Mapping[str, object]) -> str:
         value = item.get(key)
         if isinstance(value, str) and value.strip():
             return value.strip()[:500]
-    raise ConnectorError("Plaid transaction is missing its description")
+    raise ConnectorError(
+        "Plaid transaction is missing its description",
+        code=ConnectorErrorCode.INVALID_RESPONSE,
+    )
 
 
 def _occurred_on(item: Mapping[str, object]) -> str:
@@ -171,28 +203,39 @@ def _occurred_on(item: Mapping[str, object]) -> str:
     try:
         return date.fromisoformat(candidate).isoformat()
     except ValueError as exc:
-        raise ConnectorError("Plaid transaction has an invalid date") from exc
+        raise ConnectorError(
+            "Plaid transaction has an invalid date",
+            code=ConnectorErrorCode.INVALID_RESPONSE,
+        ) from exc
 
 
 def _amount_minor(item: Mapping[str, object]) -> int:
-    """Map Plaid amounts into Folio signed minor units.
-
-    Plaid depository convention: positive amounts leave the account. Folio uses
-    negative minor units for outflows, so the sign is inverted.
-    """
+    """Map Plaid positive outflows to Folio negative minor units."""
 
     raw = item.get("amount")
     if raw is None or isinstance(raw, bool):
-        raise ConnectorError("Plaid transaction is missing its amount")
+        raise ConnectorError(
+            "Plaid transaction is missing its amount",
+            code=ConnectorErrorCode.INVALID_RESPONSE,
+        )
     try:
         amount = Decimal(str(raw))
     except (InvalidOperation, ValueError) as exc:
-        raise ConnectorError("Plaid transaction has an invalid amount") from exc
+        raise ConnectorError(
+            "Plaid transaction has an invalid amount",
+            code=ConnectorErrorCode.INVALID_RESPONSE,
+        ) from exc
     if not amount.is_finite():
-        raise ConnectorError("Plaid transaction has a non-finite amount")
+        raise ConnectorError(
+            "Plaid transaction has a non-finite amount",
+            code=ConnectorErrorCode.INVALID_RESPONSE,
+        )
     minor = (-amount) * 100
     if minor != minor.to_integral_value():
-        raise ConnectorError("Plaid transaction amount has fractional cents")
+        raise ConnectorError(
+            "Plaid transaction amount has fractional cents",
+            code=ConnectorErrorCode.INVALID_RESPONSE,
+        )
     return int(minor)
 
 
@@ -210,13 +253,24 @@ def normalise_transactions(
         provider_account_id = _required_text(item, "account_id")
         account = account_by_provider_id.get(provider_account_id)
         if account is None:
-            raise ConnectorError("Plaid transaction references an unknown account")
-        pending = bool(item.get("pending"))
-        if pending:
+            raise ConnectorError(
+                "Plaid transaction references an unknown account",
+                code=ConnectorErrorCode.INVALID_RESPONSE,
+            )
+        raw_pending = item.get("pending", False)
+        if not isinstance(raw_pending, bool):
+            raise ConnectorError(
+                "Plaid transaction pending must be a boolean",
+                code=ConnectorErrorCode.INVALID_RESPONSE,
+            )
+        if raw_pending:
             continue
         external_reference = f"plaid:{provider_account_id}:{provider_id}"
         if external_reference in seen:
-            raise ConnectorError("Plaid returned a duplicate transaction id")
+            raise ConnectorError(
+                "Plaid returned a duplicate transaction id",
+                code=ConnectorErrorCode.INVALID_RESPONSE,
+            )
         seen.add(external_reference)
         currency = item.get("iso_currency_code") or item.get("unofficial_currency_code")
         if currency is None:
@@ -224,9 +278,15 @@ def normalise_transactions(
         elif isinstance(currency, str):
             canonical_currency = currency.strip().upper()
         else:
-            raise ConnectorError("Plaid transaction has an invalid currency")
+            raise ConnectorError(
+                "Plaid transaction has an invalid currency",
+                code=ConnectorErrorCode.INVALID_RESPONSE,
+            )
         if canonical_currency != "USD":
-            raise ConnectorError("Folio currently supports USD Plaid transactions only")
+            raise ConnectorError(
+                "Folio currently supports USD Plaid transactions only",
+                code=ConnectorErrorCode.INVALID_RESPONSE,
+            )
         transactions.append(
             PlaidTransaction(
                 provider_id=provider_id,
@@ -245,6 +305,23 @@ def normalise_transactions(
             key=lambda value: (value.occurred_on, value.external_reference),
         )
     )
+
+
+def normalise_removed_transactions(
+    items: tuple[Mapping[str, object], ...],
+) -> tuple[PlaidRemovedTransaction, ...]:
+    removed: list[PlaidRemovedTransaction] = []
+    seen: set[str] = set()
+    for item in items:
+        provider_id = _required_text(item, "transaction_id", "id")
+        if provider_id in seen:
+            raise ConnectorError(
+                "Plaid returned a duplicate removed transaction id",
+                code=ConnectorErrorCode.INVALID_RESPONSE,
+            )
+        seen.add(provider_id)
+        removed.append(PlaidRemovedTransaction(provider_id=provider_id))
+    return tuple(sorted(removed, key=lambda value: value.provider_id))
 
 
 class PlaidReadOnlyAdapter:
@@ -284,7 +361,10 @@ class PlaidReadOnlyAdapter:
 
     def _auth_body(self) -> dict[str, str]:
         if not (self.config.enabled and self.config.client_id and self.config.secret):
-            raise ConnectorError("Plaid is disabled or unconfigured")
+            raise ConnectorError(
+                "Plaid is disabled or unconfigured",
+                code=ConnectorErrorCode.UNCONFIGURED,
+            )
         return {
             "client_id": self.config.client_id,
             "secret": self.config.secret,
@@ -301,15 +381,27 @@ class PlaidReadOnlyAdapter:
             )
             response.raise_for_status()
             data = response.json()
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code
+            raise ConnectorError(
+                "Plaid read request failed",
+                code=ConnectorErrorCode.UPSTREAM_FAILURE,
+                retryable=status == 429 or status >= 500,
+            ) from exc
         except (httpx.HTTPError, ValueError) as exc:
-            raise ConnectorError("Plaid read request failed") from exc
+            raise ConnectorError(
+                "Plaid read request failed",
+                code=ConnectorErrorCode.UPSTREAM_FAILURE,
+                retryable=True,
+            ) from exc
         if not isinstance(data, Mapping):
-            raise ConnectorError("Plaid returned an invalid read response")
+            raise ConnectorError(
+                "Plaid returned an invalid read response",
+                code=ConnectorErrorCode.INVALID_RESPONSE,
+            )
         return data
 
     async def create_link_token(self, *, client_user_id: str = "folio_local_owner") -> str:
-        """Create a short-lived Link token for the current Plaid Link pattern."""
-
         response = await self._post(
             "/link/token/create",
             {
@@ -322,7 +414,10 @@ class PlaidReadOnlyAdapter:
         )
         token = response.get("link_token")
         if not isinstance(token, str) or not token.strip():
-            raise ConnectorError("Plaid link token response was incomplete")
+            raise ConnectorError(
+                "Plaid link token response was incomplete",
+                code=ConnectorErrorCode.INVALID_RESPONSE,
+            )
         return token.strip()
 
     async def exchange_public_token(self, public_token: str) -> tuple[str, str]:
@@ -333,16 +428,23 @@ class PlaidReadOnlyAdapter:
         access_token = response.get("access_token")
         item_id = response.get("item_id")
         if not isinstance(access_token, str) or not access_token.strip():
-            raise ConnectorError("Plaid token exchange did not return an access token")
+            raise ConnectorError(
+                "Plaid token exchange did not return an access token",
+                code=ConnectorErrorCode.INVALID_RESPONSE,
+            )
         if not isinstance(item_id, str) or not item_id.strip():
-            raise ConnectorError("Plaid token exchange did not return an item id")
+            raise ConnectorError(
+                "Plaid token exchange did not return an item id",
+                code=ConnectorErrorCode.INVALID_RESPONSE,
+            )
         return access_token.strip(), item_id.strip()
 
     async def create_sandbox_public_token(self) -> str:
-        """Bypass Link in sandbox using /sandbox/public_token/create."""
-
         if self.config.environment != "sandbox":
-            raise ConnectorError("Sandbox public tokens are only available in sandbox")
+            raise ConnectorError(
+                "Sandbox public tokens are only available in sandbox",
+                code=ConnectorErrorCode.INVALID_REQUEST,
+            )
         response = await self._post(
             "/sandbox/public_token/create",
             {
@@ -352,12 +454,13 @@ class PlaidReadOnlyAdapter:
         )
         token = response.get("public_token")
         if not isinstance(token, str) or not token.strip():
-            raise ConnectorError("Plaid sandbox public token response was incomplete")
+            raise ConnectorError(
+                "Plaid sandbox public token response was incomplete",
+                code=ConnectorErrorCode.INVALID_RESPONSE,
+            )
         return token.strip()
 
     async def resolve_access_token(self, public_token: str | None = None) -> str:
-        """Resolve an ephemeral access token without persisting it."""
-
         if public_token and public_token.strip():
             access_token, _item_id = await self.exchange_public_token(public_token.strip())
             return access_token
@@ -368,15 +471,13 @@ class PlaidReadOnlyAdapter:
             access_token, _item_id = await self.exchange_public_token(sandbox_token)
             return access_token
         raise ConnectorError(
-            "Plaid sync requires PLAID_ACCESS_TOKEN or a Link public_token"
+            "Plaid sync requires PLAID_ACCESS_TOKEN or a Link public_token",
+            code=ConnectorErrorCode.INVALID_REQUEST,
         )
 
     async def list_accounts(self, *, access_token: str) -> tuple[Mapping[str, object], ...]:
         response = await self._post("/accounts/get", {"access_token": access_token})
-        raw = response.get("accounts")
-        if not isinstance(raw, list):
-            raise ConnectorError("Plaid accounts response did not contain an account list")
-        return tuple(item for item in raw if isinstance(item, Mapping))
+        return _mapping_items(response.get("accounts"), "accounts")
 
     async def sync_transactions(
         self,
@@ -384,18 +485,30 @@ class PlaidReadOnlyAdapter:
         access_token: str,
         cursor: str | None = None,
         count: int = 100,
-    ) -> tuple[tuple[Mapping[str, object], ...], str | None, bool]:
+    ) -> PlaidSyncPage:
         body: dict[str, object] = {"access_token": access_token, "count": count}
         if cursor:
             body["cursor"] = cursor
         response = await self._post("/transactions/sync", body)
-        added = response.get("added")
-        if not isinstance(added, list):
-            raise ConnectorError("Plaid transactions sync response was incomplete")
-        next_cursor = response.get("next_cursor")
-        has_more = bool(response.get("has_more"))
-        return (
-            tuple(item for item in added if isinstance(item, Mapping)),
-            str(next_cursor) if isinstance(next_cursor, str) and next_cursor else None,
-            has_more,
+        added = _mapping_items(response.get("added"), "added transactions")
+        modified = _mapping_items(response.get("modified"), "modified transactions")
+        removed_raw = _mapping_items(response.get("removed"), "removed transactions")
+        raw_cursor = response.get("next_cursor")
+        if raw_cursor is not None and not isinstance(raw_cursor, str):
+            raise ConnectorError(
+                "Plaid next_cursor must be text or null",
+                code=ConnectorErrorCode.INVALID_RESPONSE,
+            )
+        raw_has_more = response.get("has_more")
+        if not isinstance(raw_has_more, bool):
+            raise ConnectorError(
+                "Plaid has_more must be a boolean",
+                code=ConnectorErrorCode.INVALID_RESPONSE,
+            )
+        return PlaidSyncPage(
+            added=added,
+            modified=modified,
+            removed=normalise_removed_transactions(removed_raw),
+            next_cursor=raw_cursor.strip() if isinstance(raw_cursor, str) and raw_cursor.strip() else None,
+            has_more=raw_has_more,
         )
