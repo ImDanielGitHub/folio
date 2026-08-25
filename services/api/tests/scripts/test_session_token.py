@@ -4,7 +4,8 @@ import stat
 from pathlib import Path
 
 import pytest
-from scripts.session_token import ensure_session_token
+
+from finance_agent.runtime.session_token import ensure_session_token
 
 
 def test_creates_private_token_file_and_reuses_it(tmp_path: Path) -> None:
