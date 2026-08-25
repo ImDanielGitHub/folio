@@ -77,8 +77,10 @@ jobs:
           pnpm install --frozen-lockfile
           uv sync --project services/api --frozen
 
-      - name: Apply safe Ruff fixes
-        run: pnpm lint:fix
+      - name: Apply Ruff fixes
+        run: |
+          uv run --project services/api ruff check --fix --unsafe-fixes --config services/api/pyproject.toml services/api/src services/api/tests
+          git diff --check
 
       - name: Verify repository
         run: timeout 25m pnpm verify
