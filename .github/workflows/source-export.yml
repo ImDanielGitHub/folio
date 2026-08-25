@@ -13,10 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check out current audit branch
+      - name: Check out current main
         uses: actions/checkout@v4
         with:
-          ref: agent/audit-programme-20260826
+          ref: main
           fetch-depth: 1
 
       - name: Create source archive
@@ -25,14 +25,14 @@ jobs:
             --exclude=.git \
             --exclude=node_modules \
             --exclude=services/api/.venv \
-            -czf /tmp/folio-audit-source.tar.gz .
+            -czf /tmp/folio-main-after-pr2.tar.gz .
 
       - name: Upload source archive
         uses: actions/upload-artifact@v4
         with:
-          name: folio-audit-source
-          path: /tmp/folio-audit-source.tar.gz
+          name: folio-main-after-pr2
+          path: /tmp/folio-main-after-pr2.tar.gz
           if-no-files-found: error
           retention-days: 1
 
-# Refresh marker: audit programme v4
+# Refresh marker: current main after audit programme foundation
