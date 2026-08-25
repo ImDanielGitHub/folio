@@ -59,7 +59,7 @@ jobs:
           rm -f scripts/apply_audit_programme_v4.py
           rm -f scripts/apply_audit_programme_v5.py
           rm -f scripts/apply_audit_programme_v6.py
-          rm -f .github/workflows/apply-audit-programme.yml
+          rm -f .github/workflows/ci.yml
       - name: Commit verified programme slice
         run: |
           git config user.name "github-actions[bot]"
