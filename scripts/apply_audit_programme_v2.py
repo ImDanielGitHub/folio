@@ -82,8 +82,29 @@ def corrected_harden_api_routes() -> None:
     _original_harden_api_routes()
 
 
+_original_preserve_turn_mode = programme.preserve_turn_mode_and_workspace_ownership
+
+
+def corrected_preserve_turn_mode_and_workspace_ownership() -> None:
+    path = "services/api/src/finance_agent/storage/store.py"
+    content = programme.read(path)
+    compact = (
+        "                    turn_id, workspace_id, thread_id, role, content, occurred_at,\n"
+        "                    status, evidence_ids_json\n"
+    )
+    expanded = (
+        "                    turn_id, workspace_id, thread_id, role,\n"
+        "                    content, occurred_at,\n"
+        "                    status, evidence_ids_json\n"
+    )
+    if compact in content:
+        programme.write(path, content.replace(compact, expanded, 1))
+    _original_preserve_turn_mode()
+
+
 programme.add_material_state_migration = corrected_migration
 programme.harden_api_routes = corrected_harden_api_routes
+programme.preserve_turn_mode_and_workspace_ownership = corrected_preserve_turn_mode_and_workspace_ownership
 programme.main()
 
 # Stage timing must use the real run clock at both boundaries.
