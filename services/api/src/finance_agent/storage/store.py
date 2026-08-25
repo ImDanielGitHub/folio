@@ -8,7 +8,7 @@ import sqlite3
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from .migrations import MIGRATIONS
 
@@ -112,7 +112,7 @@ class SQLiteStore:
         parameters: Sequence[Any] | Mapping[str, Any] = (),
     ) -> sqlite3.Row | None:
         with self.connect() as connection:
-            return connection.execute(sql, parameters).fetchone()
+            return cast(sqlite3.Row | None, connection.execute(sql, parameters).fetchone())
 
     def fetch_all(
         self,
@@ -133,6 +133,7 @@ class SQLiteStore:
         occurred_at: str,
         status: str = "complete",
         evidence_ids: Sequence[str] = (),
+        model_mode: str = "local",
     ) -> None:
         with self.transaction() as connection:
             existing = connection.execute(
@@ -157,9 +158,10 @@ class SQLiteStore:
             connection.execute(
                 """
                 INSERT INTO conversation_turns(
-                    turn_id, workspace_id, thread_id, role, content, occurred_at,
-                    status, evidence_ids_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    turn_id, workspace_id, thread_id, role,
+                    content, occurred_at,
+                    status, evidence_ids_json, model_mode
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     turn_id,
@@ -170,6 +172,7 @@ class SQLiteStore:
                     occurred_at,
                     status,
                     canonical_json(list(evidence_ids)),
+                    model_mode,
                 ),
             )
 
@@ -179,9 +182,15 @@ class SQLiteStore:
         with self.transaction() as connection:
             supersedes = claim.get("supersedesClaimId")
             if supersedes is not None:
-                connection.execute(
-                    "UPDATE claims SET status = 'superseded' WHERE claim_id = ?",
+                target = connection.execute(
+                    "SELECT workspace_id FROM claims WHERE claim_id = ?",
                     (supersedes,),
+                ).fetchone()
+                if target is None or str(target["workspace_id"]) != str(claim["workspaceId"]):
+                    raise ValueError("superseded claim must belong to the same workspace")
+                connection.execute(
+                    "UPDATE claims SET status = 'superseded' WHERE claim_id = ? AND workspace_id = ?",
+                    (supersedes, claim["workspaceId"]),
                 )
             connection.execute(
                 """
@@ -207,6 +216,15 @@ class SQLiteStore:
     def save_dialogue_frame(self, frame: Mapping[str, Any]) -> None:
         with self.transaction() as connection:
             encoded = canonical_json(frame)
+            owner = connection.execute(
+                "SELECT workspace_id, thread_id FROM dialogue_frames WHERE frame_id = ?",
+                (frame["frameId"],),
+            ).fetchone()
+            if owner is not None and (
+                str(owner["workspace_id"]) != str(frame["workspaceId"])
+                or str(owner["thread_id"]) != str(frame["threadId"])
+            ):
+                raise ValueError("frame_id is already owned by another workspace or thread")
             existing = connection.execute(
                 "SELECT frame_json FROM dialogue_frames WHERE frame_id = ?",
                 (frame["frameId"],),

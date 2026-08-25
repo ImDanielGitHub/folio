@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from finance_agent.finance.service import (
-    DATA_THROUGH,
     POLICY_VERSION,
     WORKSPACE_ID,
     DerivedState,
@@ -58,22 +59,59 @@ class DailyCloseIdentity:
 
 
 class DailyCloseService:
-    def __init__(self, engine: FinanceEngine, *, worker_id: str = "worker_local_001") -> None:
+    def __init__(
+        self,
+        engine: FinanceEngine,
+        *,
+        worker_id: str = "worker_local_001",
+        clock: Callable[[], datetime] | None = None,
+    ) -> None:
         self.engine = engine
         self.worker_id = worker_id
+        self.clock = clock or (lambda: datetime.now(UTC))
 
     def _input_hash(self) -> str:
-        rows = self.engine.store.fetch_all(
+        sources = self.engine.store.fetch_all(
             """
-            SELECT source_item_id, digest, mapping_version, row_count
-            FROM source_items WHERE workspace_id = ? AND source_type = 'csv'
+            SELECT source_item_id, source_type, digest, mapping_version, row_count
+            FROM source_items WHERE workspace_id = ?
             ORDER BY source_item_id
+            """,
+            (WORKSPACE_ID,),
+        )
+        rules = self.engine.store.fetch_all(
+            """
+            SELECT rule_id, merchant_contains, maximum_amount_minor, currency,
+                   target_classification, target_category, effective_from, priority, active
+            FROM classification_rules
+            WHERE workspace_id = ? AND active = 1
+            ORDER BY priority DESC, rule_id
+            """,
+            (WORKSPACE_ID,),
+        )
+        workspace = self.engine.store.fetch_one(
+            """
+            SELECT protected_reserve_minor, currency, timezone, data_through
+            FROM workspaces WHERE workspace_id = ?
+            """,
+            (WORKSPACE_ID,),
+        )
+        provider_events = self.engine.store.fetch_all(
+            """
+            SELECT provider, provider_account_id, provider_transaction_id, event_type,
+                   amount_minor, currency, recorded_at
+            FROM provider_transaction_events
+            WHERE workspace_id = ?
+            ORDER BY provider, provider_account_id, provider_transaction_id, recorded_at, event_id
             """,
             (WORKSPACE_ID,),
         )
         payload = {
             "policyVersion": POLICY_VERSION,
-            "sources": [dict(row) for row in rows],
+            "workspace": dict(workspace) if workspace is not None else None,
+            "sources": [dict(row) for row in sources],
+            "activeRules": [dict(row) for row in rules],
+            "providerEvents": [dict(row) for row in provider_events],
         }
         return hashlib.sha256(canonical_json(payload).encode()).hexdigest()
 
@@ -215,7 +253,11 @@ class DailyCloseService:
         snapshot_id = identity.snapshot_id
         close_turn_id = identity.close_turn_id
         suffix = identity.suffix
-        occurred_at = "2026-07-17T08:00:04+12:00"
+        started = self.clock()
+        if started.tzinfo is None:
+            started = started.replace(tzinfo=UTC)
+        occurred_at = started.isoformat()
+        lease_expires_at = (started + timedelta(minutes=5)).isoformat()
 
         with self.engine.store.transaction() as connection:
             connection.execute(
@@ -225,7 +267,7 @@ class DailyCloseService:
                     status, lease_owner, lease_expires_at, attempt_count, started_at,
                     correlation_id
                 ) VALUES (?, 'jobdef_koru_daily_close', ?, ?, ?, 'running', ?,
-                    '2026-07-17T08:05:00+12:00', 1, ?, ?)
+                    ?, 1, ?, ?)
                 """,
                 (
                     run_id,
@@ -233,7 +275,8 @@ class DailyCloseService:
                     idempotency_key,
                     input_hash,
                     self.worker_id,
-                    DATA_THROUGH,
+                    lease_expires_at,
+                    occurred_at,
                     correlation_id,
                 ),
             )
@@ -258,7 +301,7 @@ class DailyCloseService:
                         sequence,
                         input_hash,
                         sha256_json(output),
-                        DATA_THROUGH,
+                        occurred_at,
                         occurred_at,
                     ),
                 )
@@ -321,9 +364,9 @@ class DailyCloseService:
             receipt_id=receipt_id,
             snapshot_id=snapshot["snapshotId"],
             status="completed",
-            new_findings=3,
-            new_artifacts=2,
-            new_owner_messages=1,
+            new_findings=len(derived.findings),
+            new_artifacts=len(derived.artifacts),
+            new_owner_messages=1 if close_turn_id else 0,
             close_turn_id=close_turn_id,
         )
 

@@ -13,6 +13,7 @@ from fastapi import (
     Form,
     Header,
     HTTPException,
+    Path,
     Query,
     UploadFile,
 )
@@ -20,6 +21,15 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from finance_agent.agent.events import SequenceGap, format_sse
+from finance_agent.api.http_security import (
+    IDENTIFIER_MAX_LENGTH,
+    IDENTIFIER_MIN_LENGTH,
+    IDENTIFIER_PATTERN,
+    MAX_CSV_BYTES,
+    UploadTooLarge,
+    content_disposition,
+    read_upload_with_limit,
+)
 from finance_agent.api.routes.dependencies import RouteServices, get_route_services
 from finance_agent.connectors.base import ConnectorError
 
@@ -81,6 +91,15 @@ class UndoRequest(RequestModel):
     reason: str = Field(min_length=1, max_length=240)
 
 
+PathIdentifier = Annotated[
+    str,
+    Path(
+        min_length=IDENTIFIER_MIN_LENGTH,
+        max_length=IDENTIFIER_MAX_LENGTH,
+        pattern=IDENTIFIER_PATTERN,
+    ),
+]
+
 Services = Annotated[RouteServices, Depends(get_route_services)]
 
 
@@ -104,11 +123,12 @@ def create_router() -> APIRouter:
         workspace_id: Annotated[str, Form(alias="workspaceId")],
         file: Annotated[UploadFile, File()],
     ) -> dict[str, object]:
-        content = await file.read()
+        try:
+            content = await read_upload_with_limit(file, max_bytes=MAX_CSV_BYTES)
+        except UploadTooLarge as exc:
+            raise HTTPException(status_code=413, detail="CSV exceeds the 10 MB limit") from exc
         if not content:
             raise HTTPException(status_code=422, detail="CSV file is empty")
-        if len(content) > 10_000_000:
-            raise HTTPException(status_code=413, detail="CSV exceeds the 10 MB limit")
         filename = file.filename or "source.csv"
         if not filename.lower().endswith(".csv"):
             raise HTTPException(status_code=422, detail="source file must use a .csv name")
@@ -207,7 +227,7 @@ def create_router() -> APIRouter:
 
     @router.get("/v1/jobs/{run_id}/events")
     async def run_events(
-        run_id: str,
+        run_id: PathIdentifier,
         services: Services,
         after_sequence: Annotated[int | None, Query(alias="afterSequence", ge=0)] = None,
         last_event_id: Annotated[str | None, Header(alias="Last-Event-ID")] = None,
@@ -220,6 +240,8 @@ def create_router() -> APIRouter:
                 raise HTTPException(
                     status_code=400, detail="Last-Event-ID must be a numeric sequence"
                 ) from exc
+        if resume is not None and resume < 0:
+            raise HTTPException(status_code=400, detail="event sequence must be non-negative")
         resume = resume or 0
         try:
             events = await services.read_events(run_id=run_id, after_sequence=resume)
@@ -258,7 +280,7 @@ def create_router() -> APIRouter:
 
     @router.post("/v1/threads/{thread_id}/turns", status_code=202)
     async def submit_turn(
-        thread_id: str,
+        thread_id: PathIdentifier,
         body: OwnerTurnRequest,
         services: Services,
     ) -> dict[str, object]:
@@ -274,14 +296,14 @@ def create_router() -> APIRouter:
 
     @router.get("/v1/workspaces/{workspace_id}/snapshot")
     async def workspace_snapshot(
-        workspace_id: str,
+        workspace_id: PathIdentifier,
         services: Services,
     ) -> dict[str, object]:
         return dict(await services.workspace_snapshot(workspace_id))
 
     @router.post("/v1/events/{event_id}/undo")
     async def undo_event(
-        event_id: str,
+        event_id: PathIdentifier,
         body: UndoRequest,
         services: Services,
     ) -> dict[str, object]:
@@ -300,13 +322,16 @@ def create_router() -> APIRouter:
         )
 
     @router.get("/v1/artifacts/{artifact_id}")
-    async def artifact(artifact_id: str, services: Services) -> Response:
+    async def artifact(
+        artifact_id: PathIdentifier,
+        services: Services,
+    ) -> Response:
         value = await services.artifact(artifact_id)
         return Response(
             content=value.content,
             media_type=value.media_type,
             headers={
-                "Content-Disposition": f'inline; filename="{value.filename}"',
+                "Content-Disposition": content_disposition(value.filename),
                 "ETag": f'"{value.content_hash}"',
             },
         )

@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
-
 from finance_agent.agent.catalogue import ControllerState
 from finance_agent.agent.controller import (
     FinanceAgentController,

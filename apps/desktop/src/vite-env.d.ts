@@ -12,6 +12,7 @@ interface Window {
   financeDesktop?: {
     runtime: "electron";
     apiBase: string;
+      sessionToken?: string;
     pickCsv: () => Promise<{ name: string; base64: string } | null>;
     openArtifact: (artifactId: string) => Promise<boolean>;
   };

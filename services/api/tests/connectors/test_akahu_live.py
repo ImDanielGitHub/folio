@@ -7,7 +7,6 @@ from pathlib import Path
 import httpx
 import pytest
 from fastapi import FastAPI
-
 from finance_agent.api.routes import create_router
 from finance_agent.api.services import AKAHU_MAPPING_VERSION, LocalRouteServices
 from finance_agent.connectors.akahu import AkahuConfig, AkahuReadOnlyAdapter

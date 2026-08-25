@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 
 from finance_agent.agent.dialogue import ActiveQuestion
 
@@ -180,7 +181,7 @@ def decide_business_discovery(
     has_active_question: bool,
     had_committed_write: bool,
     plan_was_read: bool,
-    asked_at,
+    asked_at: datetime,
     question_id: str,
     asked_prompts: Sequence[str] = (),
     just_answered_question: bool = False,

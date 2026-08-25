@@ -974,5 +974,39 @@ MIGRATIONS: tuple[Migration, ...] = (
 
         PRAGMA foreign_keys = ON;
         """,
+    ),    Migration(
+        version=8,
+        name="provider_quarantine_and_turn_provenance",
+        sql="""
+        ALTER TABLE conversation_turns
+            ADD COLUMN model_mode TEXT NOT NULL DEFAULT 'local'
+            CHECK (model_mode IN ('local', 'hybrid', 'cloud'));
+
+        CREATE TABLE provider_transaction_events (
+            event_id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id),
+            provider TEXT NOT NULL,
+            provider_account_id TEXT NOT NULL,
+            provider_transaction_id TEXT NOT NULL,
+            source_item_id TEXT NOT NULL REFERENCES source_items(source_item_id),
+            event_type TEXT NOT NULL CHECK (event_type IN (
+                'added', 'modified', 'removed', 'quarantined'
+            )),
+            occurred_on TEXT,
+            description TEXT NOT NULL,
+            amount_minor INTEGER,
+            currency TEXT NOT NULL,
+            payload_json TEXT NOT NULL,
+            supersedes_event_id TEXT REFERENCES provider_transaction_events(event_id),
+            recorded_at TEXT NOT NULL,
+            UNIQUE (workspace_id, provider, event_id)
+        );
+
+        CREATE INDEX provider_events_reference
+            ON provider_transaction_events(
+                workspace_id, provider, provider_account_id, provider_transaction_id, recorded_at
+            );
+        """,
     ),
+
 )

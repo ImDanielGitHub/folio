@@ -23,6 +23,7 @@ API_LOG="${LOG_DIR}/api.log"
 UI_LOG="${LOG_DIR}/ui.log"
 API_PID_FILE="${PID_DIR}/api.pid"
 UI_PID_FILE="${PID_DIR}/ui.pid"
+SESSION_TOKEN_FILE="${PID_DIR}/session-token"
 LMS_MODEL_DEFAULT="qwen3.5-9b"
 DO_RESET=0
 DO_LMS=0
@@ -84,6 +85,7 @@ stop_pidfile() {
 if [[ "$DO_STOP" -eq 1 ]]; then
   stop_pidfile "$API_PID_FILE" "API"
   stop_pidfile "$UI_PID_FILE" "UI"
+  rm -f "$SESSION_TOKEN_FILE"
   log "Folio run processes stopped (external listeners on ${API_PORT}/${UI_PORT} left alone)."
   exit 0
 fi
@@ -108,6 +110,23 @@ if [[ ! -d "${ROOT}/node_modules" ]] || [[ ! -x "${ROOT}/services/api/.venv/bin/
   pnpm install --frozen-lockfile
   uv sync --project services/api --frozen
 fi
+
+if [[ -z "${FOLIO_SESSION_TOKEN:-}" && ! -s "$SESSION_TOKEN_FILE" ]]; then
+  if [[ -f "$API_PID_FILE" || -f "$UI_PID_FILE" ]]; then
+    log "Upgrading managed Folio processes to authenticated loopback sessions…"
+    stop_pidfile "$API_PID_FILE" "API"
+    stop_pidfile "$UI_PID_FILE" "UI"
+  elif api_healthy || ui_healthy; then
+    die "Existing Folio listener has no recoverable session token. Stop it before launching."
+  fi
+fi
+
+FOLIO_SESSION_TOKEN="$(
+  FOLIO_SESSION_TOKEN="${FOLIO_SESSION_TOKEN:-}" \
+    uv run --project services/api --frozen python scripts/session_token.py "$SESSION_TOKEN_FILE"
+)"
+export FOLIO_SESSION_TOKEN
+export VITE_FOLIO_SESSION_TOKEN="$FOLIO_SESSION_TOKEN"
 
 if [[ "$DO_LMS" -eq 1 ]]; then
   if ! command -v lms >/dev/null 2>&1; then
@@ -199,7 +218,7 @@ if [[ "$DO_RESET" -eq 1 ]]; then
 fi
 
 HEALTH="$(curl -fsS --max-time 3 "${API_URL}/health" || true)"
-CAPS="$(curl -fsS --max-time 3 "${API_URL}/v1/models/capabilities" 2>/dev/null || true)"
+CAPS="$(curl -fsS --max-time 3 -H "X-Folio-Session: ${FOLIO_SESSION_TOKEN}" "${API_URL}/v1/models/capabilities" 2>/dev/null || true)"
 
 log ""
 log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

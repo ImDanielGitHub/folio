@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from finance_agent.connectors.akahu_fixture import AkahuFixtureIngestor
 from finance_agent.connectors.base import ConnectorError
 from finance_agent.finance.service import FinanceEngine

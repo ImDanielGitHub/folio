@@ -8,7 +8,6 @@ from pathlib import Path
 import httpx
 import pytest
 from fastapi import FastAPI
-
 from finance_agent.api.routes import create_router
 from finance_agent.api.services import PLAID_MAPPING_VERSION, LocalRouteServices
 from finance_agent.connectors.base import ConnectorError
@@ -119,7 +118,9 @@ def _configured_adapter(
 
 
 @pytest.mark.asyncio
-async def test_live_sync_paginates_and_commits_exact_minor_units(tmp_path: Path) -> None:
+async def test_live_sync_paginates_and_quarantines_foreign_currency_minor_units(
+    tmp_path: Path,
+) -> None:
     requests: list[httpx.Request] = []
     adapter, client = _configured_adapter(requests)
     services = LocalRouteServices(
@@ -136,29 +137,42 @@ async def test_live_sync_paginates_and_commits_exact_minor_units(tmp_path: Path)
         assert requests == []
 
         result = await services.sync_plaid()
-        assert result["status"] == "ingested"
+        assert result["status"] == "quarantined_currency_mismatch"
         assert result["accountCount"] == 1
         assert result["transactionCount"] == 2
-        assert result["rowCount"] == 2
+        assert result["rowCount"] == 0
+        assert result["providerEventCount"] == 2
+        assert result["providerCurrency"] == "USD"
+        assert result["ledgerCommitted"] is False
+        assert result["quarantineReason"] == "workspace_currency_mismatch"
         assert result["liveSyncAttempted"] is True
         assert result["externalCallsMade"] is True
         assert len(requests) == 5
 
         rows = services.store.fetch_all(
             """
-            SELECT amount_minor, source_status, external_reference
-            FROM source_rows WHERE mapping_version = ?
-            ORDER BY occurred_on, external_reference
-            """,
-            (PLAID_MAPPING_VERSION,),
+            SELECT amount_minor, currency, event_type
+            FROM provider_transaction_events
+            WHERE provider = 'plaid'
+            ORDER BY provider_transaction_id
+            """
         )
-        # Plaid positive outflow → Folio negative minor units.
+        # Provider cents are preserved exactly but never relabelled as NZD ledger cents.
         assert [int(row["amount_minor"]) for row in rows] == [-1234, -29]
-        assert [str(row["source_status"]) for row in rows] == ["posted", "posted"]
+        assert [str(row["currency"]) for row in rows] == ["USD", "USD"]
+        assert [str(row["event_type"]) for row in rows] == ["quarantined", "quarantined"]
+        assert services.store.fetch_all(
+            "SELECT source_row_id FROM source_rows WHERE mapping_version = ?",
+            (PLAID_MAPPING_VERSION,),
+        ) == []
 
         repeated = await services.sync_plaid()
         assert repeated["status"] == "no_new_transactions"
         assert repeated["rowCount"] == 0
+        event_rows = services.store.fetch_all(
+            "SELECT event_id FROM provider_transaction_events"
+        )
+        assert len(event_rows) == 2
     finally:
         await services.aclose()
         await client.aclose()
