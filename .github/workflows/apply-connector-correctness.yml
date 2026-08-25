@@ -42,7 +42,7 @@ jobs:
           version: "0.10.0"
           enable-cache: true
       - name: Apply deterministic transformations
-        run: python scripts/apply_connector_correctness_v2.py
+        run: python scripts/apply_connector_correctness_v3.py
       - name: Install dependencies
         run: |
           pnpm install --frozen-lockfile
@@ -55,6 +55,7 @@ jobs:
         run: |
           rm -f scripts/apply_connector_correctness.py
           rm -f scripts/apply_connector_correctness_v2.py
+          rm -f scripts/apply_connector_correctness_v3.py
       - name: Commit verified connector slice
         run: |
           git config user.name "github-actions[bot]"
