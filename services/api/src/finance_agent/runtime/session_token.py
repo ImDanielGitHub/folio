@@ -7,6 +7,7 @@ import os
 import secrets
 import stat
 from collections.abc import Sequence
+from contextlib import suppress
 from pathlib import Path
 
 MIN_TOKEN_LENGTH = 20
@@ -44,10 +45,8 @@ def ensure_session_token(path: Path, supplied: str | None) -> tuple[str, bool]:
 
     path = path.expanduser().absolute()
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    try:
+    with suppress(OSError):
         path.parent.chmod(0o700)
-    except OSError:
-        pass
 
     try:
         return _read_private_token(path), False
