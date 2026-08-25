@@ -24,13 +24,12 @@ jobs:
             --exclude=.git \
             --exclude=node_modules \
             --exclude=services/api/.venv \
-            --exclude=folio-source.tar.gz \
-            -czf folio-source.tar.gz .
+            -czf /tmp/folio-source.tar.gz .
 
       - name: Upload source archive
         uses: actions/upload-artifact@v4
         with:
           name: folio-source
-          path: folio-source.tar.gz
+          path: /tmp/folio-source.tar.gz
           if-no-files-found: error
           retention-days: 1
