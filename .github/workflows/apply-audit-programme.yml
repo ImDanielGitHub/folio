@@ -1,0 +1,65 @@
+name: Apply audit programme
+
+on:
+  push:
+    branches:
+      - agent/audit-programme-20260826
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-audit-programme
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, '[audit-applied]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      LM_STUDIO_BASE_URL: http://127.0.0.1:65530/v1
+      OPENAI_API_KEY: ""
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/audit-programme-20260826
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.0"
+          enable-cache: true
+      - name: Apply deterministic transformations
+        run: python scripts/apply_audit_programme_v2.py
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          uv sync --project services/api --frozen
+      - name: Apply safe Ruff fixes
+        run: pnpm lint:fix
+      - name: Verify repository
+        run: timeout 25m pnpm verify
+      - name: Remove one-shot programme machinery
+        run: |
+          rm -f scripts/apply_audit_programme.py
+          rm -f scripts/apply_audit_programme_v2.py
+          rm -f .github/workflows/apply-audit-programme.yml
+      - name: Commit verified programme slice
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: implement audited correctness and security programme [audit-applied]"
+          git push origin HEAD:agent/audit-programme-20260826
