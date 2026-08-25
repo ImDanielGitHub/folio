@@ -1,0 +1,85 @@
+name: Merge verified provider stack
+
+on:
+  push:
+    branches:
+      - agent/merge-provider-run-20260826
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TARGET_HEAD: agent/provider-run-correctness-20260826
+    steps:
+      - name: Wait for verified product head and green PR CI
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+
+          for attempt in $(seq 1 120); do
+            pr_json="$(gh pr list --repo "$repo" --state open --head "$TARGET_HEAD" --limit 1 --json number,headRefOid,baseRefName,isDraft,url)"
+            pr_number="$(jq -r '.[0].number // empty' <<<"$pr_json")"
+            if [[ -z "$pr_number" ]]; then
+              echo "No open PR for $TARGET_HEAD yet; attempt $attempt/120"
+              sleep 15
+              continue
+            fi
+
+            base="$(jq -r '.[0].baseRefName' <<<"$pr_json")"
+            sha="$(jq -r '.[0].headRefOid' <<<"$pr_json")"
+            if [[ "$base" != "main" ]]; then
+              echo "Refusing to merge PR #$pr_number because base is $base"
+              exit 1
+            fi
+
+            message="$(gh api "repos/$repo/commits/$sha" --jq '.commit.message')"
+            if [[ "$message" != *"[provider-run-applied]"* ]]; then
+              echo "Product gate has not produced its verified head yet; attempt $attempt/120"
+              sleep 15
+              continue
+            fi
+
+            files="$(gh api --paginate "repos/$repo/pulls/$pr_number/files?per_page=100" --jq '.[].filename')"
+            if grep -Eq '^(\.audit-stack/|scripts/apply_provider_origin_compat\.py$|\.github/workflows/apply-provider-run-correctness)' <<<"$files"; then
+              echo "Refusing to merge because one-shot staging machinery remains in the final diff"
+              printf '%s\n' "$files"
+              exit 1
+            fi
+
+            runs="$(gh api -X GET "repos/$repo/actions/workflows/ci.yml/runs" -f branch="$TARGET_HEAD" -f event=pull_request -f per_page=20)"
+            ci_state="$(jq -r --arg sha "$sha" '[.workflow_runs[] | select(.head_sha == $sha)] | sort_by(.created_at) | last | if . == null then "missing" else (.status + ":" + (.conclusion // "")) end' <<<"$runs")"
+            case "$ci_state" in
+              completed:success)
+                echo "PR #$pr_number has green CI at $sha"
+                current_sha="$(gh pr view "$pr_number" --repo "$repo" --json headRefOid --jq '.headRefOid')"
+                if [[ "$current_sha" != "$sha" ]]; then
+                  echo "PR head moved while checking; retrying"
+                  sleep 10
+                  continue
+                fi
+                gh pr ready "$pr_number" --repo "$repo" || true
+                gh pr merge "$pr_number" --repo "$repo" --squash --delete-branch --match-head-commit "$sha"
+                echo "Merged PR #$pr_number at verified head $sha"
+                exit 0
+                ;;
+              completed:*)
+                echo "CI completed unsuccessfully for $sha: $ci_state"
+                exit 1
+                ;;
+              *)
+                echo "Waiting for ordinary PR CI at $sha: $ci_state (attempt $attempt/120)"
+                sleep 15
+                ;;
+            esac
+          done
+
+          echo "Timed out waiting for verified provider stack"
+          exit 1
