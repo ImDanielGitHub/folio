@@ -51,6 +51,21 @@ jobs:
           version: "0.10.0"
           enable-cache: true
 
+      - name: Verify staged fragments
+        run: |
+          wc -c .audit-stack/provider-run.part*
+          cat > /tmp/provider-run-parts.sha256 <<'EOF'
+          9275510bd4f3da0e5afdb014bb52a0d031b15b067f2ec70dcdc10795eb8c3164  .audit-stack/provider-run.part00
+          492675c8f1a76cabec311817e79b7e5d6bf3ca72cadc83856f3248f71bdf8fc5  .audit-stack/provider-run.part01
+          5826fcc52a91db2bb2c31a15b2443caa7e03e22c9f44139501173eb341428165  .audit-stack/provider-run.part02
+          07adc429e0706fbbaeec4e7c5a5652d6bf9b99c991657b46379f2b1f780facd9  .audit-stack/provider-run.part03
+          38f10e80085e68d393924125238014af80ea380a052e7b0263f03c6fdd11cae  .audit-stack/provider-run.part04
+          9664b8757bd0726119a8fa679fcd07c11434caaa52e65be88d8983caa0a01991  .audit-stack/provider-run.part05
+          4fc24d16c09c0171196b96dfb25f94a33337c8145834dd515d61e1eb2f9bfb7f  .audit-stack/provider-run.part06
+          8e5fa7838dafd4a5c2385e533ffae24bab959a644171301bd918506a343b5609  .audit-stack/provider-run.part07
+          EOF
+          sha256sum -c /tmp/provider-run-parts.sha256
+
       - name: Reconstruct and apply verified source bundle
         run: |
           cat .audit-stack/provider-run.part* | base64 --decode > /tmp/provider-run-files.tar.gz
