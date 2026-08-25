@@ -4,7 +4,6 @@ import stat
 from pathlib import Path
 
 import pytest
-
 from finance_agent.runtime.session_token import ensure_session_token
 
 
