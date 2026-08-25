@@ -4,7 +4,6 @@ import json
 
 import httpx
 import pytest
-
 from finance_agent.models.base import (
     AdapterStatus,
     ModelPurpose,

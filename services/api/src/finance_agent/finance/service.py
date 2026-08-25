@@ -7,10 +7,10 @@ import hashlib
 import json
 import sqlite3
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from finance_agent.artifacts import PREPARATORY_LANGUAGE, OwnerPackDTO, render_owner_pack
 from finance_agent.connectors.akahu_fixture import AkahuFixtureIngestor, AkahuFixtureResult
@@ -338,6 +338,71 @@ class FinanceEngine:
         parsed = PlaidFixtureIngestor().ingest(payload, source_item_id=source_item_id)
         version = mapping_version or PlaidFixtureIngestor.MAPPING_VERSION
         plaid_account_id = account_id or PLAID_ACCOUNT_ID
+        if parsed.currency != "NZD":
+            with self.store.transaction() as connection:
+                existing = connection.execute(
+                    """
+                    SELECT source_item_id, row_count FROM source_items
+                    WHERE workspace_id = ? AND digest = ? AND mapping_version = ?
+                    """,
+                    (WORKSPACE_ID, parsed.digest, version),
+                ).fetchone()
+                if existing is not None:
+                    return replace(parsed, status="deduplicated")
+                connection.execute(
+                    """
+                    INSERT INTO source_items(
+                        source_item_id, workspace_id, source_type, label, digest,
+                        mapping_version, received_at, status, row_count
+                    ) VALUES (?, ?, 'plaid_fixture', ?, ?, ?, ?, 'processed', ?)
+                    """,
+                    (
+                        parsed.source_item_id,
+                        WORKSPACE_ID,
+                        parsed.account_label,
+                        parsed.digest,
+                        version,
+                        parsed.synced_at,
+                        parsed.row_count,
+                    ),
+                )
+                for transaction in parsed.transactions:
+                    provider_account_id = plaid_account_id
+                    provider_transaction_id = transaction.external_reference
+                    event_id = stable_id(
+                        "prevt", "plaid", provider_account_id, provider_transaction_id, parsed.digest
+                    )
+                    connection.execute(
+                        """
+                        INSERT INTO provider_transaction_events(
+                            event_id, workspace_id, provider, provider_account_id,
+                            provider_transaction_id, source_item_id, event_type, occurred_on,
+                            description, amount_minor, currency, payload_json,
+                            supersedes_event_id, recorded_at
+                        ) VALUES (?, ?, 'plaid', ?, ?, ?, 'quarantined', ?, ?, ?, ?, ?, NULL, ?)
+                        """,
+                        (
+                            event_id,
+                            WORKSPACE_ID,
+                            provider_account_id,
+                            provider_transaction_id,
+                            parsed.source_item_id,
+                            transaction.occurred_on,
+                            transaction.description,
+                            transaction.amount_minor,
+                            parsed.currency,
+                            canonical_json(
+                                {
+                                    "providerCurrency": parsed.currency,
+                                    "reason": "workspace_currency_mismatch",
+                                    "externalReference": transaction.external_reference,
+                                }
+                            ),
+                            parsed.synced_at,
+                        ),
+                    )
+            return replace(parsed, status="quarantined_currency_mismatch")
+
         with self.store.transaction() as connection:
             existing = connection.execute(
                 """
@@ -556,21 +621,25 @@ class FinanceEngine:
         return cursor.rowcount
 
     def validate_normalised_rows(self, connection: sqlite3.Connection) -> int:
-        invalid = connection.execute(
-            """
-            SELECT COUNT(*) AS count
-            FROM transactions
-            WHERE workspace_id = ?
-              AND (currency != 'NZD' OR typeof(amount_minor) != 'integer')
-            """,
-            (WORKSPACE_ID,),
-        ).fetchone()["count"]
+        invalid = int(
+            connection.execute(
+                """
+                SELECT COUNT(*) AS count
+                FROM transactions
+                WHERE workspace_id = ?
+                  AND (currency != 'NZD' OR typeof(amount_minor) != 'integer')
+                """,
+                (WORKSPACE_ID,),
+            ).fetchone()["count"]
+        )
         if invalid:
             raise FinanceStateError("normalised transactions violated exact-money invariants")
-        return connection.execute(
-            "SELECT COUNT(*) AS count FROM transactions WHERE workspace_id = ?",
-            (WORKSPACE_ID,),
-        ).fetchone()["count"]
+        return int(
+            connection.execute(
+                "SELECT COUNT(*) AS count FROM transactions WHERE workspace_id = ?",
+                (WORKSPACE_ID,),
+            ).fetchone()["count"]
+        )
 
     def deduplicate(self, connection: sqlite3.Connection, *, occurred_at: str) -> dict[str, str]:
         connection.execute(
@@ -652,10 +721,12 @@ class FinanceEngine:
             """,
             (occurred_at, WORKSPACE_ID),
         )
-        return connection.execute(
-            "SELECT state_revision FROM workspaces WHERE workspace_id = ?",
-            (WORKSPACE_ID,),
-        ).fetchone()["state_revision"]
+        return int(
+            connection.execute(
+                "SELECT state_revision FROM workspaces WHERE workspace_id = ?",
+                (WORKSPACE_ID,),
+            ).fetchone()["state_revision"]
+        )
 
     def _ensure_forecast_evidence(
         self, connection: sqlite3.Connection, *, occurred_at: str
@@ -809,6 +880,7 @@ class FinanceEngine:
             """,
             (FORECAST_ID,),
         ).fetchone()["revision"]
+        revision = int(revision)
         connection.execute(
             """
             INSERT INTO forecast_revisions(
@@ -1390,7 +1462,7 @@ class FinanceEngine:
         )
         if row is None:
             raise FinanceStateError("no workspace snapshot has been committed")
-        return _json(row["snapshot_json"])
+        return cast(dict[str, Any], _json(row["snapshot_json"]))
 
     def get_cash_scenario_surface(self) -> dict[str, Any]:
         with self.store.connect() as connection:

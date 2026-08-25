@@ -7,7 +7,6 @@ from typing import Any
 import httpx
 import pytest
 from fastapi import FastAPI
-
 from finance_agent.agent.events import RunEvent, RunEventBuffer
 from finance_agent.api.routes import ArtifactPayload, create_router
 

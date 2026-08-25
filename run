@@ -103,6 +103,12 @@ set -a
 source "${ROOT}/.env"
 set +a
 
+if [[ -z "${FOLIO_SESSION_TOKEN:-}" ]]; then
+  FOLIO_SESSION_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+fi
+export FOLIO_SESSION_TOKEN
+export VITE_FOLIO_SESSION_TOKEN="$FOLIO_SESSION_TOKEN"
+
 if [[ ! -d "${ROOT}/node_modules" ]] || [[ ! -x "${ROOT}/services/api/.venv/bin/uvicorn" ]]; then
   log "Installing dependencies…"
   pnpm install --frozen-lockfile

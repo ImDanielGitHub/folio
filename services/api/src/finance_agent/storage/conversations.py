@@ -111,6 +111,7 @@ class SQLiteConversationStore:
             role=turn.role,
             content=turn.content,
             occurred_at=turn.occurred_at.isoformat(),
+            model_mode=turn.mode,
         )
 
     def recent_turns(self, thread_id: str, limit: int) -> tuple[TranscriptTurn, ...]:
@@ -118,7 +119,7 @@ class SQLiteConversationStore:
             raise KeyError(f"unknown thread: {thread_id}")
         rows = self.store.fetch_all(
             """
-            SELECT turn_id, role, content, occurred_at
+            SELECT turn_id, role, content, occurred_at, model_mode
             FROM conversation_turns
             WHERE workspace_id = ? AND thread_id = ?
             ORDER BY occurred_at DESC, turn_id DESC
@@ -126,17 +127,13 @@ class SQLiteConversationStore:
             """,
             (self.workspace_id, thread_id, limit),
         )
-        mode_row = self.store.fetch_one(
-            "SELECT model_mode FROM workspaces WHERE workspace_id = ?", (self.workspace_id,)
-        )
-        mode = str(mode_row["model_mode"]) if mode_row else "local"
         return tuple(
             TranscriptTurn(
                 turn_id=str(row["turn_id"]),
                 role=str(row["role"]),
                 content=str(row["content"]),
                 occurred_at=datetime.fromisoformat(str(row["occurred_at"])),
-                mode=mode,
+                mode=str(row["model_mode"]),
             )
             for row in reversed(rows)
         )

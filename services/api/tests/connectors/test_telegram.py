@@ -5,7 +5,6 @@ from copy import deepcopy
 from pathlib import Path
 
 import pytest
-
 from finance_agent.connectors.base import ConnectorError
 from finance_agent.connectors.telegram import TelegramConfig, TelegramFixtureIngestor
 

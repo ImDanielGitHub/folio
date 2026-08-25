@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 
 import pytest
-
 from finance_agent.agent.harness import ModelHarness
 from finance_agent.models.base import (
     AdapterStatus,

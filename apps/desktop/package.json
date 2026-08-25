@@ -11,7 +11,8 @@
     "build:electron": "tsc -p tsconfig.electron.json",
     "dev:electron": "pnpm build:electron && electron dist-electron/main/main.js --renderer-url=http://127.0.0.1:4173",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.electron.json --noEmit",
-    "build": "pnpm build:electron && vite build"
+    "build": "pnpm build:electron && vite build",
+    "test": "pnpm build:electron && node --test tests/*.test.mjs"
   },
   "dependencies": {
     "react": "19.2.7",

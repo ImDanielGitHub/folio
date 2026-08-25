@@ -5,7 +5,6 @@ from pathlib import Path
 
 import httpx
 import pytest
-
 from finance_agent.api.app import create_app
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -218,6 +217,11 @@ async def test_real_golden_api_flow_is_local_exact_and_reversible(tmp_path: Path
             "/v1/jobs/daily-close",
             json={"workspaceId": "ws_koru_studio"},
         )
-        assert second_close.json()["status"] == "no_op"
+        assert second_close.json()["status"] == "completed"
+        unchanged_close = await client.post(
+            "/v1/jobs/daily-close",
+            json={"workspaceId": "ws_koru_studio"},
+        )
+        assert unchanged_close.json()["status"] == "no_op"
 
     await services.aclose()

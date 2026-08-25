@@ -20,6 +20,11 @@ export type BackendHealth = {
 };
 
 const LOOPBACK_API_URL = window.financeDesktop?.apiBase ?? "http://127.0.0.1:8787";
+const SESSION_TOKEN = window.financeDesktop?.sessionToken ?? import.meta.env.VITE_FOLIO_SESSION_TOKEN;
+const sessionHeaders = (): Record<string, string> => SESSION_TOKEN
+  ? { "X-Folio-Session": SESSION_TOKEN }
+  : {};
+
 const API_URL = (
   import.meta.env.VITE_FINANCE_API_URL ?? (import.meta.env.DEV ? "/api" : LOOPBACK_API_URL)
 ).replace(/\/$/, "");
@@ -41,6 +46,7 @@ async function requestJson<T>(path: string, init?: RequestInit, timeoutMs = 2400
       signal,
       headers: {
         Accept: "application/json",
+        ...sessionHeaders(),
         ...(init?.body ? { "Content-Type": "application/json" } : {}),
         ...init?.headers,
       },
@@ -259,7 +265,7 @@ export async function loadConnectionCapabilities(): Promise<Record<string, unkno
 
 export async function readRunEvents(runId: string): Promise<RunEvent[]> {
   const response = await fetch(`${API_URL}/v1/jobs/${encodeURIComponent(runId)}/events`, {
-    headers: { Accept: "text/event-stream" },
+    headers: { Accept: "text/event-stream", ...sessionHeaders() },
   });
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
   const stream = await response.text();
@@ -281,7 +287,7 @@ export async function importCsv(file: File): Promise<Record<string, unknown>> {
   form.set("file", file, file.name);
   const response = await fetch(`${API_URL}/v1/ingest/csv`, {
     method: "POST",
-    headers: { Accept: "application/json" },
+    headers: { Accept: "application/json", ...sessionHeaders() },
     body: form,
   });
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);

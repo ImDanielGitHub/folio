@@ -1378,6 +1378,86 @@ class LocalRouteServices:
 
         transactions = normalise_plaid_transactions(tuple(transaction_items), accounts)
         synced_at = _now().isoformat()
+        if any(account.currency != "NZD" for account in accounts):
+            primary = accounts[0]
+            existing_provider_references = {
+                str(row["provider_transaction_id"])
+                for row in self.store.fetch_all(
+                    """
+                    SELECT provider_transaction_id
+                    FROM provider_transaction_events
+                    WHERE workspace_id = ? AND provider = 'plaid'
+                      AND provider_account_id = ?
+                    """,
+                    (WORKSPACE_ID, primary.account_id or PLAID_ACCOUNT_ID),
+                )
+            }
+            new_transactions = tuple(
+                transaction
+                for transaction in transactions
+                if transaction.external_reference not in existing_provider_references
+            )
+            if not new_transactions:
+                self.working_understanding.ensure_current(workspace_id=WORKSPACE_ID)
+                return {
+                    "sourceItemId": None,
+                    "status": "no_new_transactions",
+                    "sourceSha256": None,
+                    "accountCount": len(accounts),
+                    "transactionCount": len(transactions),
+                    "rowCount": 0,
+                    "providerEventCount": 0,
+                    "providerCurrency": primary.currency,
+                    "ledgerCommitted": False,
+                    "quarantineReason": "workspace_currency_mismatch",
+                    "settledOnly": True,
+                    "liveSyncAttempted": True,
+                    "externalCallsMade": True,
+                }
+            payload = {
+                "account": {
+                    "name": primary.label,
+                    "maskedNumber": primary.mask or "",
+                    "currency": primary.currency,
+                },
+                "syncedAt": synced_at,
+                "transactions": [
+                    {
+                        "occurredOn": transaction.occurred_on,
+                        "description": transaction.description,
+                        "amountMinor": transaction.amount_minor,
+                        "externalReference": transaction.external_reference,
+                        "status": "posted",
+                    }
+                    for transaction in new_transactions
+                ],
+            }
+            async with self._lock:
+                imported = self.engine.ingest_plaid_fixture(
+                    payload,
+                    source_item_id=_stable_id(
+                        "src", "plaid_live", synced_at, primary.provider_id
+                    ),
+                    mapping_version=PLAID_MAPPING_VERSION,
+                    account_id=primary.account_id or PLAID_ACCOUNT_ID,
+                )
+                self.working_understanding.ensure_current(workspace_id=WORKSPACE_ID)
+            return {
+                "sourceItemId": imported.source_item_id,
+                "status": imported.status,
+                "sourceSha256": imported.digest,
+                "accountCount": len(accounts),
+                "transactionCount": len(transactions),
+                "rowCount": 0,
+                "providerEventCount": imported.row_count,
+                "providerCurrency": primary.currency,
+                "ledgerCommitted": False,
+                "quarantineReason": "workspace_currency_mismatch",
+                "settledOnly": True,
+                "liveSyncAttempted": True,
+                "externalCallsMade": True,
+            }
+
         async with self._lock:
             with self.store.transaction() as connection:
                 for account in accounts:

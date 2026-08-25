@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from finance_agent.finance import CSVIngestError, FinanceEngine
 from finance_agent.storage import SQLiteStore
 

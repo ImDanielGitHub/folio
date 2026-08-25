@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from finance_agent.api.services import LocalRouteServices
 from finance_agent.finance.service import THREAD_ID, WORKSPACE_ID
 from finance_agent.models.base import (
