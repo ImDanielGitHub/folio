@@ -5,11 +5,35 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import StrEnum
 from typing import Protocol
+
+
+class ConnectorErrorCode(StrEnum):
+    """Stable machine-readable connector failure classes."""
+
+    UNCONFIGURED = "unconfigured"
+    INVALID_REQUEST = "invalid_request"
+    INVALID_RESPONSE = "invalid_response"
+    UPSTREAM_FAILURE = "upstream_failure"
+    REPEATED_CURSOR = "repeated_cursor"
+    LIMIT_EXCEEDED = "limit_exceeded"
+    CONFLICT = "conflict"
 
 
 class ConnectorError(RuntimeError):
     """Safe connector error that never includes secrets or response bodies."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: ConnectorErrorCode = ConnectorErrorCode.INVALID_RESPONSE,
+        retryable: bool = False,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.retryable = retryable
 
 
 @dataclass(frozen=True, slots=True)
