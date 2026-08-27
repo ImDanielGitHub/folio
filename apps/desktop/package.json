@@ -12,7 +12,10 @@
     "dev:electron": "pnpm build:electron && electron dist-electron/main/main.js --renderer-url=http://127.0.0.1:4173",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.electron.json --noEmit",
     "build": "pnpm build:electron && vite build",
-    "test": "pnpm build:electron && node --test tests/*.test.mjs"
+    "test": "pnpm test:electron && pnpm test:protocol",
+    "test:electron": "pnpm build:electron && node --test tests/*.test.mjs",
+    "build:test": "tsc -p tsconfig.tests.json",
+    "test:protocol": "pnpm build:test && node --test dist-tests/tests/protocol.test.js"
   },
   "dependencies": {
     "react": "19.2.7",

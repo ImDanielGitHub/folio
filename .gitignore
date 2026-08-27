@@ -36,3 +36,5 @@ var/
 .idea/
 .vscode/
 *.swp
+
+apps/desktop/dist-tests/

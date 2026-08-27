@@ -233,7 +233,7 @@ export type WorkspaceSnapshot = {
   thread: {
     threadId: string;
     turns: ThreadTurn[];
-    activeQuestion: null | { questionId: string; prompt: string };
+    activeQuestion: null | { questionId: string; prompt: string; askedAt?: string };
   };
   currentSurface: FinanceSurfaceSpec;
   findings: Array<{
@@ -494,8 +494,289 @@ export function validateRunEvent(value: unknown): RunEvent {
     validateSurfaceSpec(payload.surface);
   }
   if (event.type === "state.snapshot" || event.type === "state.patch") {
-    const snapshot = record(payload.snapshot, `${event.type} snapshot`);
-    validateSurfaceSpec(snapshot.currentSurface);
+    validateWorkspaceSnapshot(payload.snapshot);
   }
   return event as unknown as RunEvent;
+}
+
+
+function requiredInteger(value: unknown, label: string): asserts value is number {
+  requiredNumber(value, label);
+  if (!Number.isSafeInteger(value)) throw new Error(`${label} must be a safe integer.`);
+}
+
+function allowedValue(
+  value: unknown,
+  allowed: ReadonlySet<string>,
+  label: string,
+): asserts value is string {
+  if (typeof value !== "string" || !allowed.has(value)) {
+    throw new Error(`${label} is outside the closed contract.`);
+  }
+}
+
+function exactWithOptional(
+  value: Record<string, unknown>,
+  required: readonly string[],
+  optional: readonly string[],
+  label: string,
+): void {
+  const actual = Object.keys(value).sort();
+  const permitted = new Set([...required, ...optional]);
+  if (
+    required.some((key) => !(key in value))
+    || actual.some((key) => !permitted.has(key))
+  ) {
+    throw new Error(`${label} contains missing or unsupported fields.`);
+  }
+}
+
+function validateFreshness(value: unknown, label = "freshness"): void {
+  const freshness = record(value, label);
+  exact(freshness, ["dataThrough", "status", "timezone"], label);
+  requiredString(freshness.dataThrough, `${label} dataThrough`);
+  requiredString(freshness.timezone, `${label} timezone`);
+  allowedValue(
+    freshness.status,
+    new Set(["current", "stale", "partial"]),
+    `${label} status`,
+  );
+}
+
+export function validateWorkspaceSnapshot(value: unknown): WorkspaceSnapshot {
+  const snapshot = record(value, "workspace snapshot");
+  exact(snapshot, [
+    "snapshotVersion",
+    "snapshotId",
+    "workspace",
+    "thread",
+    "currentSurface",
+    "findings",
+    "activity",
+    "sources",
+    "totals",
+    "artifacts",
+    "modelMode",
+    "freshness",
+  ], "workspace snapshot");
+  if (snapshot.snapshotVersion !== "api.snapshot@1") {
+    throw new Error("Unsupported workspace snapshot version.");
+  }
+  requiredString(snapshot.snapshotId, "snapshotId");
+
+  const workspace = record(snapshot.workspace, "workspace");
+  exact(workspace, [
+    "workspaceId",
+    "name",
+    "entityType",
+    "currency",
+    "timezone",
+    "protectedReserveMinor",
+  ], "workspace");
+  requiredString(workspace.workspaceId, "workspaceId");
+  requiredString(workspace.name, "workspace name");
+  requiredString(workspace.entityType, "workspace entityType");
+  requiredString(workspace.currency, "workspace currency");
+  requiredString(workspace.timezone, "workspace timezone");
+  requiredInteger(workspace.protectedReserveMinor, "workspace protectedReserveMinor");
+
+  const thread = record(snapshot.thread, "thread");
+  exact(thread, ["threadId", "turns", "activeQuestion"], "thread");
+  requiredString(thread.threadId, "threadId");
+  if (!Array.isArray(thread.turns)) throw new Error("thread turns must be an array");
+  thread.turns.forEach((item) => {
+    const turn = record(item, "thread turn");
+    exactWithOptional(
+      turn,
+      ["turnId", "role", "content", "occurredAt", "status", "evidenceIds"],
+      ["receipt"],
+      "thread turn",
+    );
+    requiredString(turn.turnId, "turnId");
+    allowedValue(turn.role, new Set(["agent", "owner"]), "turn role");
+    requiredString(turn.content, "turn content");
+    requiredString(turn.occurredAt, "turn occurredAt");
+    allowedValue(
+      turn.status,
+      new Set(["complete", "streaming", "stopped"]),
+      "turn status",
+    );
+    strings(turn.evidenceIds, "turn evidenceIds");
+    if (turn.receipt !== undefined) {
+      const receipt = record(turn.receipt, "turn receipt");
+      exactWithOptional(
+        receipt,
+        ["label"],
+        ["eventId", "undoable"],
+        "turn receipt",
+      );
+      requiredString(receipt.label, "receipt label");
+      if (receipt.eventId !== undefined) {
+        requiredString(receipt.eventId, "receipt eventId");
+      }
+      if (receipt.undoable !== undefined && typeof receipt.undoable !== "boolean") {
+        throw new Error("receipt undoable must be boolean");
+      }
+    }
+  });
+  if (thread.activeQuestion !== null) {
+    const question = record(thread.activeQuestion, "active question");
+    exactWithOptional(
+      question,
+      ["questionId", "prompt"],
+      ["askedAt"],
+      "active question",
+    );
+    requiredString(question.questionId, "questionId");
+    requiredString(question.prompt, "question prompt");
+    if (question.askedAt !== undefined) {
+      requiredString(question.askedAt, "question askedAt");
+    }
+  }
+
+  validateSurfaceSpec(snapshot.currentSurface);
+
+  if (!Array.isArray(snapshot.findings)) throw new Error("findings must be an array");
+  snapshot.findings.forEach((item) => {
+    const finding = record(item, "finding");
+    exact(finding, [
+      "findingId",
+      "kind",
+      "severity",
+      "title",
+      "summary",
+      "amountMinor",
+      "currency",
+      "status",
+      "evidenceIds",
+    ], "finding");
+    requiredString(finding.findingId, "findingId");
+    requiredString(finding.kind, "finding kind");
+    allowedValue(
+      finding.severity,
+      new Set(["info", "attention", "critical"]),
+      "finding severity",
+    );
+    requiredString(finding.title, "finding title");
+    requiredString(finding.summary, "finding summary");
+    if (finding.amountMinor !== null) {
+      requiredInteger(finding.amountMinor, "finding amountMinor");
+    }
+    if (finding.currency !== null) requiredString(finding.currency, "finding currency");
+    allowedValue(
+      finding.status,
+      new Set(["open", "resolved", "dismissed"]),
+      "finding status",
+    );
+    strings(finding.evidenceIds, "finding evidenceIds");
+  });
+
+  if (!Array.isArray(snapshot.activity)) throw new Error("activity must be an array");
+  snapshot.activity.forEach((item) => {
+    const activity = record(item, "activity item");
+    exactWithOptional(
+      activity,
+      ["activityId", "kind", "summary", "status", "occurredAt", "undoable", "evidenceIds"],
+      ["detail", "correlationId", "eventId"],
+      "activity item",
+    );
+    requiredString(activity.activityId, "activityId");
+    allowedValue(
+      activity.kind,
+      new Set(["job_run", "finance_event", "undo", "source_ingest", "artifact", "outbox"]),
+      "activity kind",
+    );
+    requiredString(activity.summary, "activity summary");
+    allowedValue(
+      activity.status,
+      new Set(["queued", "running", "completed", "undone", "failed"]),
+      "activity status",
+    );
+    requiredString(activity.occurredAt, "activity occurredAt");
+    if (typeof activity.undoable !== "boolean") {
+      throw new Error("activity undoable must be boolean");
+    }
+    strings(activity.evidenceIds, "activity evidenceIds");
+  });
+
+  if (!Array.isArray(snapshot.sources)) throw new Error("sources must be an array");
+  snapshot.sources.forEach((item) => {
+    const source = record(item, "source item");
+    exactWithOptional(
+      source,
+      ["sourceItemId", "sourceType", "label", "receivedAt", "status", "rowCount"],
+      ["digest"],
+      "source item",
+    );
+    requiredString(source.sourceItemId, "sourceItemId");
+    allowedValue(
+      source.sourceType,
+      new Set(["csv", "telegram_fixture", "owner_claim", "akahu_fixture", "plaid_fixture"]),
+      "source type",
+    );
+    requiredString(source.label, "source label");
+    requiredString(source.receivedAt, "source receivedAt");
+    allowedValue(
+      source.status,
+      new Set(["pending", "processed", "failed"]),
+      "source status",
+    );
+    requiredInteger(source.rowCount, "source rowCount");
+    if (source.digest !== undefined) requiredString(source.digest, "source digest");
+  });
+
+  const totals = record(snapshot.totals, "totals");
+  exact(totals, [
+    "asOf",
+    "currency",
+    "currentBalanceMinor",
+    "protectedReserveMinor",
+    "businessIncomeMinor",
+    "businessExpenseMinor",
+    "personalExpenseMinor",
+    "unresolvedExpenseMinor",
+    "projectedLowPointMinor",
+    "reserveShortfallMinor",
+  ], "totals");
+  requiredString(totals.asOf, "totals asOf");
+  requiredString(totals.currency, "totals currency");
+  for (const key of [
+    "currentBalanceMinor",
+    "protectedReserveMinor",
+    "businessIncomeMinor",
+    "businessExpenseMinor",
+    "personalExpenseMinor",
+    "unresolvedExpenseMinor",
+    "projectedLowPointMinor",
+    "reserveShortfallMinor",
+  ] as const) {
+    requiredInteger(totals[key], `totals ${key}`);
+  }
+
+  if (!Array.isArray(snapshot.artifacts)) throw new Error("artifacts must be an array");
+  snapshot.artifacts.forEach((item) => {
+    const artifact = record(item, "artifact");
+    exact(artifact, [
+      "artifactId",
+      "kind",
+      "title",
+      "contentHash",
+      "generatedAt",
+      "evidenceIds",
+    ], "artifact");
+    requiredString(artifact.artifactId, "artifactId");
+    allowedValue(
+      artifact.kind,
+      new Set(["owner_pack_html", "owner_pack_pdf"]),
+      "artifact kind",
+    );
+    requiredString(artifact.title, "artifact title");
+    requiredString(artifact.contentHash, "artifact contentHash");
+    requiredString(artifact.generatedAt, "artifact generatedAt");
+    strings(artifact.evidenceIds, "artifact evidenceIds");
+  });
+
+  allowedValue(snapshot.modelMode, new Set(["local", "hybrid", "cloud"]), "modelMode");
+  validateFreshness(snapshot.freshness);
+  return snapshot as unknown as WorkspaceSnapshot;
 }
