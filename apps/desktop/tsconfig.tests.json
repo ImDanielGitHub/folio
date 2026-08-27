@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+    "rootDir": ".",
+    "outDir": "dist-tests",
+    "noEmit": false,
+    "allowImportingTsExtensions": false
+  },
+  "include": ["src/protocol.ts", "src/runtimePolicy.ts", "src/types.ts", "tests/protocol.test.ts"]
+}

@@ -13,6 +13,8 @@ from starlette.datastructures import Headers
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from finance_agent.api.problems import problem_payload
+
 IDENTIFIER_PATTERN: Final = r"^[a-z][a-z0-9]{1,15}_[a-z0-9][a-z0-9_]{2,95}$"
 IDENTIFIER_MIN_LENGTH: Final = 6
 IDENTIFIER_MAX_LENGTH: Final = 113
@@ -86,7 +88,7 @@ async def _send_problem(
     response = JSONResponse(
         status_code=status,
         media_type="application/problem+json",
-        content={"title": title, "status": status, "detail": detail},
+        content=problem_payload(status=status, title=title, detail=detail),
     )
     await response(scope, receive, send)
 

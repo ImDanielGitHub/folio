@@ -1,4 +1,5 @@
-import { validateRunEvent, validateSurfaceSpec, type RunEvent, type WorkspaceSnapshot } from "./types";
+import { validateRunEvent, validateWorkspaceSnapshot, type RunEvent, type WorkspaceSnapshot } from "./types";
+import { ApiProblem, SseDecoder, apiProblemFromResponse, retryDelayMs, shouldRetryRequest } from "./protocol";
 
 export type RuntimeMode = "checking" | "live" | "fixture" | "offline" | "degraded";
 
@@ -29,6 +30,10 @@ const API_URL = (
   import.meta.env.VITE_FINANCE_API_URL ?? (import.meta.env.DEV ? "/api" : LOOPBACK_API_URL)
 ).replace(/\/$/, "");
 
+const wait = (milliseconds: number) => new Promise<void>((resolve) => {
+  window.setTimeout(resolve, milliseconds);
+});
+
 async function withTimeout<T>(work: (signal: AbortSignal) => Promise<T>, timeoutMs = 1000): Promise<T> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -40,22 +45,58 @@ async function withTimeout<T>(work: (signal: AbortSignal) => Promise<T>, timeout
 }
 
 async function requestJson<T>(path: string, init?: RequestInit, timeoutMs = 2400): Promise<T> {
-  return withTimeout(async (signal) => {
-    const response = await fetch(`${API_URL}${path}`, {
-      ...init,
-      signal,
-      headers: {
-        Accept: "application/json",
-        ...sessionHeaders(),
-        ...(init?.body ? { "Content-Type": "application/json" } : {}),
-        ...init?.headers,
-      },
-    });
-    if (!response.ok) {
-      throw new Error(`${response.status} ${response.statusText}`);
+  const method = (init?.method ?? "GET").toUpperCase();
+  const maximumAttempts = shouldRetryRequest(method, 503) ? 3 : 1;
+  let lastFailure: unknown = null;
+
+  for (let attempt = 0; attempt < maximumAttempts; attempt += 1) {
+    try {
+      const response = await withTimeout(async (signal) => {
+        const headers = new Headers(init?.headers);
+        headers.set("Accept", "application/json");
+        if (init?.body && !(init.body instanceof FormData)) {
+          headers.set("Content-Type", "application/json");
+        }
+        Object.entries(sessionHeaders()).forEach(([key, value]) => {
+          headers.set(key, value);
+        });
+        return fetch(`${API_URL}${path}`, { ...init, signal, headers });
+      }, timeoutMs);
+      if (response.ok) return (await response.json()) as T;
+
+      const problem = await apiProblemFromResponse(response);
+      if (
+        attempt + 1 >= maximumAttempts
+        || !shouldRetryRequest(
+          method, response.status, false, problem.retryable,
+        )
+      ) {
+        throw problem;
+      }
+      await wait(retryDelayMs(attempt, response.headers.get("Retry-After")));
+    } catch (error) {
+      if (error instanceof ApiProblem) throw error;
+      lastFailure = error;
+      if (
+        attempt + 1 >= maximumAttempts
+        || !shouldRetryRequest(method, null, true)
+      ) {
+        break;
+      }
+      await wait(retryDelayMs(attempt, null));
     }
-    return (await response.json()) as T;
-  }, timeoutMs);
+  }
+
+  throw new ApiProblem({
+    type: "https://folio.local/problems/local-service-unavailable",
+    title: "Local service unavailable",
+    status: 0,
+    detail: lastFailure instanceof Error
+      ? lastFailure.message
+      : "The local Folio service could not be reached.",
+    code: "local_service_unavailable",
+    retryable: true,
+  });
 }
 
 export async function probeBackend(): Promise<BackendHealth> {
@@ -93,11 +134,11 @@ export async function probeBackend(): Promise<BackendHealth> {
     };
   } catch {
     return {
-      mode: navigator.onLine ? "fixture" : "offline",
-      label: navigator.onLine ? "Demo data" : "Offline demo",
+      mode: navigator.onLine ? "degraded" : "offline",
+      label: navigator.onLine ? "Local service unavailable" : "Folio is offline",
       detail: navigator.onLine
-        ? "The local finance service is not running, so Folio has opened the sample business."
-        : "The app is offline. Existing local data remains available.",
+        ? "The local finance service is not running. The last committed view remains visible; demo data is never substituted automatically."
+        : "This computer is offline. The last committed local view remains visible.",
       apiUrl: LOOPBACK_API_URL,
       lmStudioReady: false,
       lmStudioStatus: "not checked",
@@ -115,10 +156,7 @@ export async function probeBackend(): Promise<BackendHealth> {
 
 export async function loadSnapshot(workspaceId: string): Promise<WorkspaceSnapshot> {
   const snapshot = await requestJson<WorkspaceSnapshot>(`/v1/workspaces/${workspaceId}/snapshot`, undefined, 2800);
-  return {
-    ...snapshot,
-    currentSurface: validateSurfaceSpec(snapshot.currentSurface),
-  };
+  return validateWorkspaceSnapshot(snapshot);
 }
 
 export async function resetDemo(): Promise<{ workspaceId?: string }> {
@@ -263,21 +301,56 @@ export async function loadConnectionCapabilities(): Promise<Record<string, unkno
   return requestJson("/v1/connections/capabilities", undefined, 3200);
 }
 
-export async function readRunEvents(runId: string): Promise<RunEvent[]> {
-  const response = await fetch(`${API_URL}/v1/jobs/${encodeURIComponent(runId)}/events`, {
-    headers: { Accept: "text/event-stream", ...sessionHeaders() },
-  });
-  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-  const stream = await response.text();
+export type RunEventReadOptions = {
+  afterSequence?: number;
+  signal?: AbortSignal;
+  onEvent?: (event: RunEvent) => void;
+};
+
+export async function readRunEvents(
+  runId: string,
+  options: RunEventReadOptions = {},
+): Promise<RunEvent[]> {
+  const query = options.afterSequence && options.afterSequence > 0
+    ? `?afterSequence=${encodeURIComponent(options.afterSequence)}`
+    : "";
+  const response = await fetch(
+    `${API_URL}/v1/jobs/${encodeURIComponent(runId)}/events${query}`,
+    {
+      signal: options.signal,
+      headers: {
+        Accept: "text/event-stream",
+        ...sessionHeaders(),
+      },
+    },
+  );
+  if (!response.ok) throw await apiProblemFromResponse(response);
+
   const events: RunEvent[] = [];
-  for (const frame of stream.split(/\r?\n\r?\n/)) {
-    const data = frame
-      .split(/\r?\n/)
-      .filter((line) => line.startsWith("data:"))
-      .map((line) => line.slice(5).trimStart())
-      .join("\n");
-    if (data) events.push(validateRunEvent(JSON.parse(data) as unknown));
+  const decoder = new SseDecoder();
+  const consume = (values: string[]) => {
+    values.forEach((data) => {
+      const event = validateRunEvent(JSON.parse(data) as unknown);
+      events.push(event);
+      options.onEvent?.(event);
+    });
+  };
+
+  if (!response.body) {
+    consume(decoder.push(await response.text()));
+    consume(decoder.flush());
+    return events;
   }
+
+  const reader = response.body.getReader();
+  const text = new TextDecoder();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    consume(decoder.push(text.decode(value, { stream: true })));
+  }
+  consume(decoder.push(text.decode()));
+  consume(decoder.flush());
   return events;
 }
 
@@ -290,7 +363,7 @@ export async function importCsv(file: File): Promise<Record<string, unknown>> {
     headers: { Accept: "application/json", ...sessionHeaders() },
     body: form,
   });
-  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+  if (!response.ok) throw await apiProblemFromResponse(response);
   return (await response.json()) as Record<string, unknown>;
 }
 

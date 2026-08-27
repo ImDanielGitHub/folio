@@ -18,6 +18,7 @@ from finance_agent.api.http_security import (
     SecurityHeadersMiddleware,
     SessionAuthMiddleware,
 )
+from finance_agent.api.problems import install_problem_handlers
 from finance_agent.api.routes import create_router
 from finance_agent.api.services import LocalRouteServices
 
@@ -86,6 +87,7 @@ def create_app(
         lifespan=lifespan,
     )
     value.add_middleware(RequestBodyLimitMiddleware, max_bytes=MAX_REQUEST_BODY_BYTES)
+    install_problem_handlers(value)
     value.add_middleware(
         CORSMiddleware,
         allow_origins=sorted(ALLOWED_RENDERER_ORIGINS),

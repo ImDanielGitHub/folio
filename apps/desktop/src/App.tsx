@@ -49,6 +49,11 @@ import {
   undoEvent,
   type BackendHealth,
 } from "./transport";
+import {
+  canOpenSealedDemo,
+  initialOnboardingVisible,
+  onboardingVisibleAfterProbe,
+} from "./runtimePolicy";
 import type {
   ActivityItem,
   DrawerKind,
@@ -76,6 +81,31 @@ const initialBackend: BackendHealth = {
   plaidStatus: "unconfigured",
   plaidDetail: "Checking local Plaid configuration…",
 };
+
+const sealedFixtureBackend: BackendHealth = {
+  mode: "fixture",
+  label: "Demo data",
+  detail: "The explicitly selected sample Folio business is open.",
+  apiUrl: "http://127.0.0.1:8787",
+  lmStudioReady: false,
+  lmStudioStatus: "not checked",
+  cloudReady: false,
+  cloudCredentialState: "absent",
+  akahuReady: false,
+  akahuStatus: "unconfigured",
+  akahuDetail: "The sample business makes no Akahu request.",
+  plaidReady: false,
+  plaidStatus: "unconfigured",
+  plaidDetail: "The sample business makes no Plaid request.",
+};
+
+function rememberedOnboarding(): boolean {
+  try {
+    return localStorage.getItem("folio:onboarded") === "yes";
+  } catch {
+    return false;
+  }
+}
 
 const nowIso = () => new Date().toISOString();
 const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -189,7 +219,11 @@ export function App() {
   const query = new URLSearchParams(window.location.search);
   const forceOnboarding = query.get("onboarding") === "1";
   const skipOnboarding = query.get("demo") === "1";
-  const [showOnboarding, setShowOnboarding] = useState(() => forceOnboarding || (!skipOnboarding && localStorage.getItem("folio:onboarded") !== "yes"));
+  const rememberedOnboardingRef = useRef(rememberedOnboarding());
+  const hasAuthoritativeSnapshotRef = useRef(skipOnboarding);
+  const [showOnboarding, setShowOnboarding] = useState(() =>
+    initialOnboardingVisible(skipOnboarding, forceOnboarding),
+  );
   const [backend, setBackend] = useState(initialBackend);
   const [modelMode, setModelMode] = useState<ModelMode>(workspaceFixture.modelMode);
   const [surface, setSurface] = useState<FinanceSurfaceSpec>(livingBriefSurface);
@@ -256,22 +290,8 @@ export function App() {
   useEffect(() => {
     let active = true;
     if (skipOnboarding) {
-      setBackend({
-        mode: "fixture",
-        label: "Demo data",
-        detail: "The sample Folio business is open.",
-        apiUrl: "http://127.0.0.1:8787",
-        lmStudioReady: false,
-        lmStudioStatus: "not checked",
-        cloudReady: false,
-        cloudCredentialState: "absent",
-        akahuReady: false,
-        akahuStatus: "unconfigured",
-        akahuDetail: "The sample business makes no Akahu request.",
-        plaidReady: false,
-        plaidStatus: "unconfigured",
-        plaidDetail: "The sample business makes no Plaid request.",
-      });
+      hasAuthoritativeSnapshotRef.current = true;
+      setBackend(sealedFixtureBackend);
       return () => { active = false; };
     }
     const refreshLiveSnapshot = async () => {
@@ -282,22 +302,57 @@ export function App() {
           const live = await loadSnapshot("ws_koru_studio");
           if (!active) return;
           applySnapshot(live);
+          hasAuthoritativeSnapshotRef.current = true;
           setBackend(nextBackend);
+          setShowOnboarding(onboardingVisibleAfterProbe({
+            mode: nextBackend.mode,
+            explicitDemo: skipOnboarding,
+            forcedOnboarding: forceOnboarding,
+            rememberedOnboarding: rememberedOnboardingRef.current,
+            hasAuthoritativeSnapshot: hasAuthoritativeSnapshotRef.current,
+          }));
         } catch {
           if (!active) return;
-          setBackend({
+          const degraded: BackendHealth = {
             ...nextBackend,
             mode: "degraded",
             label: "Local service needs attention",
-            detail: "The service responded, but its workspace could not be loaded. The last committed view remains visible.",
-          });
+            detail: hasAuthoritativeSnapshotRef.current
+              ? "The service responded, but its workspace could not be refreshed. The last committed view remains visible."
+              : "The service responded, but no authoritative workspace could be loaded. Choose the sealed demo explicitly or repair the local service.",
+          };
+          setBackend(degraded);
+          setShowOnboarding(onboardingVisibleAfterProbe({
+            mode: degraded.mode,
+            explicitDemo: skipOnboarding,
+            forcedOnboarding: forceOnboarding,
+            rememberedOnboarding: rememberedOnboardingRef.current,
+            hasAuthoritativeSnapshot: hasAuthoritativeSnapshotRef.current,
+          }));
         }
         return;
       }
       setBackend(nextBackend);
+      setShowOnboarding(onboardingVisibleAfterProbe({
+        mode: nextBackend.mode,
+        explicitDemo: skipOnboarding,
+        forcedOnboarding: forceOnboarding,
+        rememberedOnboarding: rememberedOnboardingRef.current,
+        hasAuthoritativeSnapshot: hasAuthoritativeSnapshotRef.current,
+      }));
     };
     void refreshLiveSnapshot();
-    const onOffline = () => setBackend((current) => ({ ...current, mode: "offline", label: "Offline demo", detail: "Existing local data remains available." }));
+    const onOffline = () => {
+      setBackend((current) => ({
+        ...current,
+        mode: "offline",
+        label: "Folio is offline",
+        detail: hasAuthoritativeSnapshotRef.current
+          ? "The last committed local view remains visible."
+          : "No authoritative workspace is loaded. The sealed demo remains available only by explicit choice.",
+      }));
+      if (!hasAuthoritativeSnapshotRef.current) setShowOnboarding(true);
+    };
     const onOnline = () => void refreshLiveSnapshot();
     window.addEventListener("offline", onOffline);
     window.addEventListener("online", onOnline);
@@ -306,7 +361,7 @@ export function App() {
       window.removeEventListener("offline", onOffline);
       window.removeEventListener("online", onOnline);
     };
-  }, [applySnapshot, skipOnboarding]);
+  }, [applySnapshot, forceOnboarding, skipOnboarding]);
 
   useEffect(() => {
     if (shouldAutoScrollRef.current) {
@@ -338,7 +393,11 @@ export function App() {
   const completeOnboarding = async (sourceChoice: "demo" | "akahu" | "plaid" | "csv", csvFile: File | null): Promise<void> => {
     if (backend.mode === "live") {
       try {
-        if (sourceChoice === "csv" && csvFile) {
+        if (sourceChoice === "demo") {
+          await resetDemo();
+          const close = await runDailyClose();
+          await readRunEvents(close.runId);
+        } else if (sourceChoice === "csv" && csvFile) {
           await importCsv(csvFile);
           const close = await runDailyClose();
           await readRunEvents(close.runId);
@@ -362,6 +421,7 @@ export function App() {
           await readRunEvents(close.runId);
         }
         applySnapshot(await loadSnapshot("ws_koru_studio"));
+        hasAuthoritativeSnapshotRef.current = true;
       } catch {
         throw new Error(sourceChoice === "csv"
           ? "The local service could not commit this statement. Check its headings and amounts, then try again; a repeated import is deduplicated."
@@ -377,7 +437,9 @@ export function App() {
       }
       try {
         localStorage.setItem("folio:onboarded", "yes");
+        rememberedOnboardingRef.current = true;
       } catch {
+        rememberedOnboardingRef.current = true;
         // The committed local thread remains authoritative if browser storage is unavailable.
       }
       setShowOnboarding(false);
@@ -394,19 +456,20 @@ export function App() {
             : "Your demo business is ready. Folio opened the most useful next question.");
       return;
     }
-    if (backend.mode !== "fixture") {
-      throw new Error("Folio could not verify a ready local workspace. Nothing was saved or substituted; keep this setup open and try again when the local service is available.");
+    if (sourceChoice !== "demo" || !canOpenSealedDemo(backend.mode)) {
+      throw new Error("Start the local Folio service before importing a statement or connector sample, or explicitly open the sealed Folio demo.");
     }
-    if (sourceChoice !== "demo") {
-      throw new Error("Start the local Folio service before importing a statement or connector sample, or open the Folio demo.");
-    }
+    applySnapshot(workspaceFixture);
+    hasAuthoritativeSnapshotRef.current = true;
+    setBackend(sealedFixtureBackend);
     try {
       localStorage.setItem("folio:onboarded", "yes");
+      rememberedOnboardingRef.current = true;
     } catch {
-      // Fixture mode remains usable for this session even without browser storage.
+      rememberedOnboardingRef.current = true;
     }
     setShowOnboarding(false);
-    showToast("The Folio sample business is ready. No external model call was made.");
+    showToast("The sealed Folio sample business is ready. No external model call was made.");
   };
 
   const openSurface = useCallback((next: FinanceSurfaceSpec) => {

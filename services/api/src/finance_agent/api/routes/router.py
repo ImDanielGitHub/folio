@@ -255,10 +255,12 @@ def create_router(
                 status_code=409,
                 media_type="application/problem+json",
                 content={
-                    "type": "https://finance-agent.local/problems/sequence-gap",
+                    "type": "https://folio.local/problems/run-event-sequence-gap",
                     "title": "Run event sequence gap",
                     "status": 409,
                     "detail": str(gap),
+                    "code": "run_event_sequence_gap",
+                    "retryable": True,
                     "runId": gap.run_id,
                     "requestedAfterSequence": gap.requested_after,
                     "availableFromSequence": gap.available_from,
