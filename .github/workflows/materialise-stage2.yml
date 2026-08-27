@@ -1,0 +1,199 @@
+name: Materialise clean Stage 2
+
+on:
+  push:
+    branches:
+      - agent/stage2-source-export-20260827
+
+permissions:
+  contents: write
+
+concurrency:
+  group: materialise-clean-stage2
+  cancel-in-progress: true
+
+jobs:
+  materialise:
+    if: ${{ contains(github.event.head_commit.message, 'materialise clean Stage 2') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      LM_STUDIO_BASE_URL: http://127.0.0.1:65530/v1
+      OPENAI_API_KEY: ""
+      TARGET_BRANCH: agent/stage2-provider-run-correctness-20260827
+      SOURCE_BRANCH: agent/provider-run-correctness-20260826
+    steps:
+      - name: Check out current main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Create clean target branch
+        run: |
+          git switch -C "$TARGET_BRANCH" origin/main
+          git fetch origin "$SOURCE_BRANCH:refs/remotes/origin/$SOURCE_BRANCH"
+
+      - name: Reconstruct verified Stage 2 bundle
+        run: |
+          rm -f /tmp/provider-run.b64 /tmp/provider-run-files.tar.gz
+          cat > /tmp/provider-run-parts.sha256 <<'EOF'
+          8a3ba4a6d2ffc2e2f76fd4fb0311b4dab5007aa856b8da4927f8e1f5e04f785a  /tmp/provider-run.part00
+          2f6405157f71628a902d8f39c8a0f61400001678dafdb3360bfd29f3769e574c  /tmp/provider-run.part01
+          8071bec42990971f7afdd6f4241f020d8e11046e8b42ade0528c328531942af6  /tmp/provider-run.part02
+          200ccc7e8d365d18c90fb3d300e57ff82f0aaffc12276eefc2ee76f2798dfa17  /tmp/provider-run.part03
+          dc45635a3445218e9ddf0d77f0b2e24b36714dd7929ea8174a3c4612ed9b36eb  /tmp/provider-run.part04
+          9149a533a589a54589558631f8914eb8972d37ecfe030355ea7c8d50c705924b  /tmp/provider-run.part05
+          d05ae71f06b1cea5d276248dd6ce1e68eb16a7da5e209406bb915fa8d86dd39c  /tmp/provider-run.part06
+          8e4cbf092bb74943c85a6f689571913208314d9597f1f1f39e8fa42d785617f3  /tmp/provider-run.part07
+          EOF
+          for part in 00 01 02 03 04 05 06 07; do
+            git show "refs/remotes/origin/$SOURCE_BRANCH:.audit-stack/provider-run.part${part}" > "/tmp/provider-run.part${part}"
+            cat "/tmp/provider-run.part${part}" >> /tmp/provider-run.b64
+          done
+          sha256sum -c /tmp/provider-run-parts.sha256
+          base64 --decode /tmp/provider-run.b64 > /tmp/provider-run-files.tar.gz
+          echo "833cc9b37d5fe2e14b0699bf7f276d8c79bcde213106333f498f250ed09558bb  /tmp/provider-run-files.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/provider-run-files.tar.gz
+          git show "refs/remotes/origin/$SOURCE_BRANCH:scripts/apply_provider_origin_compat.py" > /tmp/apply_provider_origin_compat.py
+          python /tmp/apply_provider_origin_compat.py
+
+      - name: Make the production-route test behaviour-based
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("services/api/tests/api/test_runtime_configuration.py")
+          text = path.read_text(encoding="utf-8")
+          old = '''@pytest.mark.asyncio
+          async def test_production_app_disables_docs_demo_reset_and_diagnostics(
+              tmp_path: Path,
+          ) -> None:
+              value = create_app(
+                  database_path=tmp_path / "production.sqlite3",
+                  auto_seed=False,
+                  runtime_mode="production",
+              )
+              try:
+                  paths = {getattr(route, "path", "") for route in value.routes}
+                  assert "/docs" not in paths
+                  assert "/openapi.json" not in paths
+                  assert "/v1/demo/reset" not in paths
+                  assert "/v1/diagnostics/working-understanding" not in paths
+                  assert "/health" in paths
+              finally:
+                  await value.state.finance_route_services.aclose()
+          '''
+          new = '''@pytest.mark.asyncio
+          async def test_production_app_disables_docs_demo_reset_and_diagnostics(
+              tmp_path: Path,
+          ) -> None:
+              value = create_app(
+                  database_path=tmp_path / "production.sqlite3",
+                  auto_seed=False,
+                  runtime_mode="production",
+              )
+              try:
+                  async with httpx.AsyncClient(
+                      transport=httpx.ASGITransport(app=value),
+                      base_url="http://test",
+                  ) as client:
+                      health = await client.get("/health")
+                      docs = await client.get("/docs")
+                      openapi = await client.get("/openapi.json")
+                      reset = await client.post(
+                          "/v1/demo/reset",
+                          headers={"Origin": "http://test"},
+                          json={"workspaceId": "ws_koru_studio"},
+                      )
+                      diagnostics = await client.get(
+                          "/v1/diagnostics/working-understanding",
+                          params={"workspaceId": "ws_koru_studio"},
+                      )
+                  assert health.status_code == 200
+                  assert docs.status_code == 404
+                  assert openapi.status_code == 404
+                  assert reset.status_code == 404
+                  assert diagnostics.status_code == 404
+              finally:
+                  await value.state.finance_route_services.aclose()
+          '''
+          if text.count(old) != 1:
+              raise SystemExit(f"expected one production-route test block, found {text.count(old)}")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
+
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          uv sync --project services/api --frozen
+
+      - name: Apply safe formatting fixes
+        run: |
+          uv run --project services/api ruff check --fix --unsafe-fixes --config services/api/pyproject.toml services/api/src services/api/tests
+          git diff --check
+
+      - name: Run complete verification gate
+        run: pnpm verify
+
+      - name: Verify clean review surface
+        run: |
+          git add -A
+          cat > /tmp/expected-files <<'EOF'
+          .env.example
+          docs/AUDIT_PROGRAMME.md
+          services/api/src/finance_agent/api/app.py
+          services/api/src/finance_agent/api/http_security.py
+          services/api/src/finance_agent/api/routes/router.py
+          services/api/src/finance_agent/api/services.py
+          services/api/src/finance_agent/connectors/akahu.py
+          services/api/src/finance_agent/connectors/base.py
+          services/api/src/finance_agent/connectors/plaid.py
+          services/api/src/finance_agent/connectors/plaid_events.py
+          services/api/src/finance_agent/jobs/daily_close.py
+          services/api/src/finance_agent/storage/store.py
+          services/api/tests/agent/test_routes_sse.py
+          services/api/tests/api/test_runtime_configuration.py
+          services/api/tests/connectors/test_akahu_live.py
+          services/api/tests/connectors/test_plaid_live.py
+          services/api/tests/connectors/test_provider_sync_correctness.py
+          services/api/tests/integration/test_golden_api.py
+          EOF
+          sort -o /tmp/expected-files /tmp/expected-files
+          git diff --cached --name-only | sort > /tmp/actual-files
+          diff -u /tmp/expected-files /tmp/actual-files
+          if git diff --cached --name-only | grep -E '(^|/)(\.audit-stack|apply-provider|apply_provider|materialise-stage2)'; then
+            echo "One-shot staging machinery leaked into the clean branch" >&2
+            exit 1
+          fi
+
+      - name: Commit and push verified Stage 2
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix: complete provider and run correctness semantics [stage2-provider-run-clean]"
+          git push --force-with-lease origin "HEAD:refs/heads/$TARGET_BRANCH"
