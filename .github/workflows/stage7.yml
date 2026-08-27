@@ -1,0 +1,205 @@
+name: Stage 7 scheduler and outbox
+
+on:
+  push:
+    branches:
+      - automation/stage-7-scheduler-outbox
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  actions: read
+
+jobs:
+  build-review-and-merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ImDanielGitHub/folio
+      PRODUCT_BRANCH: stage/07-scheduler-outbox
+
+    steps:
+      - name: Check out stage automation
+        uses: actions/checkout@v4
+        with:
+          path: automation
+          fetch-depth: 1
+
+      - name: Wait for Stage 6 to be merged
+        run: |
+          for attempt in $(seq 1 180); do
+            count=$(gh pr list --repo "$REPOSITORY" --state merged \
+              --search "head:stage/06-runtime-contracts" \
+              --json number --jq 'length' 2>/dev/null || echo 0)
+            if [ "$count" -gt 0 ]; then exit 0; fi
+            echo "Waiting for the verified Stage 6 merge (${attempt}/180)."
+            sleep 15
+          done
+          echo "Stage 6 did not merge before the safety timeout." >&2
+          exit 1
+
+      - name: Check out the merged product base
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: repo
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Create an isolated product branch
+        working-directory: repo
+        run: |
+          if git ls-remote --exit-code --heads origin "$PRODUCT_BRANCH" >/dev/null 2>&1; then
+            echo "${PRODUCT_BRANCH} already exists; refusing an implicit overwrite." >&2
+            exit 1
+          fi
+          git switch -c "$PRODUCT_BRANCH"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: repo/pnpm-lock.yaml
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Install locked dependencies
+        working-directory: repo
+        run: |
+          pnpm install --frozen-lockfile
+          uv sync --project services/api --frozen
+
+      - name: Materialise Stage 7 tests and implementation
+        working-directory: repo
+        run: python ../automation/automation/stage7_impl.py
+
+      - name: Preserve only scheduler tests for the red check
+        working-directory: repo
+        run: |
+          rm -rf /tmp/stage7-tests
+          mkdir -p /tmp/stage7-tests
+          cp -a services/api/tests/. /tmp/stage7-tests/
+          git reset --hard HEAD
+          git clean -fd
+          rm -rf services/api/tests
+          mkdir -p services/api/tests
+          cp -a /tmp/stage7-tests/. services/api/tests/
+
+      - name: Verify Stage 7 regression tests fail before implementation
+        working-directory: repo
+        run: |
+          set +e
+          uv run --project services/api pytest -q services/api/tests/jobs/test_scheduler.py
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "Stage 7 scheduler tests unexpectedly passed on the unmodified product." >&2
+            exit 1
+          fi
+          echo "RED confirmed for durable schedules, leases, retries and outbox acknowledgement."
+
+      - name: Restore the clean product and apply Stage 7
+        working-directory: repo
+        run: |
+          git reset --hard HEAD
+          git clean -fd
+          python ../automation/automation/stage7_impl.py
+          pnpm lint:fix
+
+      - name: Verify targeted Stage 7 behaviour
+        working-directory: repo
+        run: uv run --project services/api pytest -q services/api/tests/jobs/test_scheduler.py
+
+      - name: Run the complete repository verification gate
+        working-directory: repo
+        env:
+          LM_STUDIO_BASE_URL: http://127.0.0.1:65530/v1
+          OPENAI_API_KEY: ""
+          FOLIO_SESSION_TOKEN: stage7-ci-session
+          VITE_FOLIO_SESSION_TOKEN: stage7-ci-session
+        run: pnpm verify
+
+      - name: Commit and push the verified stage
+        id: commit
+        working-directory: repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json run scripts services/api/src services/api/tests
+          git diff --cached --check
+          git commit -m "feat: add durable local Daily Close scheduling"
+          git push --set-upstream origin "$PRODUCT_BRANCH"
+          echo "head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Open the Stage 7 pull request
+        id: pr
+        working-directory: repo
+        run: |
+          cat > /tmp/stage7-body.md <<'EOF'
+          ## Stage 7 of the Folio audit programme
+
+          This stage turns Daily Close from a callable demo seam into a durable local worker owned by the Folio launcher.
+
+          ### Changes
+
+          - persist Daily Close schedule, timezone, quiet hours, lease and retry state
+          - calculate the next local occurrence using `zoneinfo`
+          - use transactionally claimed SQLite leases to prevent duplicate workers
+          - retry failed closes with bounded exponential backoff and redacted receipts
+          - retain durable tick receipts for completed, unchanged and failed work
+          - expose authenticated scheduler status, configuration and manual tick routes
+          - expose a bounded in-app outbox and idempotent acknowledgement route
+          - add a local scheduler CLI and launcher-managed process lifecycle
+          - start the scheduler by default with an explicit `--no-scheduler` escape hatch
+          - test timezone scheduling, quiet hours, leasing, retry redaction and outbox delivery
+
+          ### Evidence
+
+          The workflow records a red scheduler suite on the merged Stage 6 base, then runs targeted scheduler tests and the complete repository gate. Merge remains conditional on PR checks.
+
+          ### Audit coverage
+
+          Primary items: proactive worker I021-I035, scheduling B201-B214, retry and lease controls B215-B225 and notification receipts I081-I089.
+          EOF
+          url=$(gh pr create \
+            --repo "$REPOSITORY" \
+            --base main \
+            --head "$PRODUCT_BRANCH" \
+            --title "Stage 7: add durable local Daily Close scheduling and outbox" \
+            --body-file /tmp/stage7-body.md)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for Stage 7 pull-request checks
+        run: |
+          sleep 12
+          for attempt in $(seq 1 36); do
+            if gh pr checks "${{ steps.pr.outputs.url }}" --watch --fail-fast; then exit 0; fi
+            echo "Stage 7 checks are not ready or not green (${attempt}/36)."
+            sleep 10
+          done
+          exit 1
+
+      - name: Merge verified Stage 7
+        run: |
+          gh pr merge "${{ steps.pr.outputs.url }}" \
+            --squash \
+            --delete-branch \
+            --match-head-commit "${{ steps.commit.outputs.head_sha }}"
