@@ -1,0 +1,210 @@
+name: Stage 11 measured model capability
+
+on:
+  push:
+    branches:
+      - automation/stage-11-model-measurement
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  actions: read
+
+jobs:
+  build-review-and-merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 85
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ImDanielGitHub/folio
+      PRODUCT_BRANCH: stage/11-model-measurement
+
+    steps:
+      - name: Check out stage automation
+        uses: actions/checkout@v4
+        with:
+          path: automation
+          fetch-depth: 1
+
+      - name: Wait for Stage 10 to be merged
+        run: |
+          for attempt in $(seq 1 260); do
+            count=$(gh pr list --repo "$REPOSITORY" --state merged \
+              --search "head:stage/10-telegram-live" \
+              --json number --jq 'length' 2>/dev/null || echo 0)
+            if [ "$count" -gt 0 ]; then exit 0; fi
+            echo "Waiting for the verified Stage 10 merge (${attempt}/260)."
+            sleep 15
+          done
+          echo "Stage 10 did not merge before the safety timeout." >&2
+          exit 1
+
+      - name: Check out the merged product base
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: repo
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Create an isolated product branch
+        working-directory: repo
+        run: |
+          if git ls-remote --exit-code --heads origin "$PRODUCT_BRANCH" >/dev/null 2>&1; then
+            echo "${PRODUCT_BRANCH} already exists; refusing an implicit overwrite." >&2
+            exit 1
+          fi
+          git switch -c "$PRODUCT_BRANCH"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: repo/pnpm-lock.yaml
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Install locked dependencies
+        working-directory: repo
+        run: |
+          pnpm install --frozen-lockfile
+          uv sync --project services/api --frozen
+
+      - name: Materialise Stage 11 tests and implementation
+        working-directory: repo
+        run: |
+          python ../automation/automation/stage11_impl.py
+          python ../automation/automation/stage11_post.py
+
+      - name: Preserve only model-measurement tests for the red check
+        working-directory: repo
+        run: |
+          rm -rf /tmp/stage11-tests
+          mkdir -p /tmp/stage11-tests
+          cp -a services/api/tests/. /tmp/stage11-tests/
+          git reset --hard HEAD
+          git clean -fd
+          rm -rf services/api/tests
+          mkdir -p services/api/tests
+          cp -a /tmp/stage11-tests/. services/api/tests/
+
+      - name: Verify Stage 11 regression tests fail before implementation
+        working-directory: repo
+        run: |
+          set +e
+          uv run --project services/api pytest -q \
+            services/api/tests/models/test_capability_evaluation.py
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "Stage 11 model-evaluation tests unexpectedly passed on the unmodified product." >&2
+            exit 1
+          fi
+          echo "RED confirmed for measured tiers, injection cases and stale-result rejection."
+
+      - name: Restore the clean product and apply Stage 11
+        working-directory: repo
+        run: |
+          git reset --hard HEAD
+          git clean -fd
+          python ../automation/automation/stage11_impl.py
+          python ../automation/automation/stage11_post.py
+          pnpm lint:fix
+
+      - name: Verify targeted Stage 11 behaviour
+        working-directory: repo
+        run: uv run --project services/api pytest -q services/api/tests/models/test_capability_evaluation.py
+
+      - name: Run the complete repository verification gate
+        working-directory: repo
+        env:
+          LM_STUDIO_BASE_URL: http://127.0.0.1:65530/v1
+          OPENAI_API_KEY: ""
+          FOLIO_SESSION_TOKEN: stage11-ci-session
+          VITE_FOLIO_SESSION_TOKEN: stage11-ci-session
+          TELEGRAM_LIVE_ENABLED: "false"
+        run: pnpm verify
+
+      - name: Commit and push the verified stage
+        id: commit
+        working-directory: repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json docs scripts services/api/src services/api/tests
+          git diff --cached --check
+          git commit -m "feat: persist measured model capability tiers"
+          git push --set-upstream origin "$PRODUCT_BRANCH"
+          echo "head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Open the Stage 11 pull request
+        id: pr
+        working-directory: repo
+        run: |
+          cat > /tmp/stage11-body.md <<'EOF'
+          ## Stage 11 of the Folio audit programme
+
+          This stage replaces provider and model-name assumptions with synthetic task-level measurements.
+
+          ### Changes
+
+          - add four fixed synthetic evaluation cases across read, injection, scenario and explicit-claim tasks
+          - validate exact JSON Schema outputs and expected values
+          - record raw quality separately from one bounded repair attempt
+          - calculate cumulative task tiers from passed cases
+          - persist evaluation and per-case receipts without storing raw generated text
+          - expose explicit evaluate and history routes plus local CLI commands
+          - overlay capability cards only for the exact provider/model pair
+          - reject stale, wrong-case-set and wrong-harness measurements
+          - report availability without a current measurement as tier 0 and unmeasured
+          - keep deterministic finance validation authoritative regardless of measured tier
+
+          ### Evidence
+
+          The workflow records a red measurement suite on the merged Stage 10 base, then runs targeted model-policy tests and the complete repository gate. No credentialed model call occurs in CI. Merge remains conditional on PR checks.
+
+          ### Audit coverage
+
+          Primary items: model evaluation I165-I178, calibrated trust I179-I188, prompt-injection testing B316-B329, stale measurement controls B330-B338 and capability honesty B339-B345.
+          EOF
+          url=$(gh pr create \
+            --repo "$REPOSITORY" \
+            --base main \
+            --head "$PRODUCT_BRANCH" \
+            --title "Stage 11: replace model claims with measured capability tiers" \
+            --body-file /tmp/stage11-body.md)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for Stage 11 pull-request checks
+        run: |
+          sleep 12
+          for attempt in $(seq 1 36); do
+            if gh pr checks "${{ steps.pr.outputs.url }}" --watch --fail-fast; then exit 0; fi
+            echo "Stage 11 checks are not ready or not green (${attempt}/36)."
+            sleep 10
+          done
+          exit 1
+
+      - name: Merge verified Stage 11
+        run: |
+          gh pr merge "${{ steps.pr.outputs.url }}" \
+            --squash \
+            --delete-branch \
+            --match-head-commit "${{ steps.commit.outputs.head_sha }}"
