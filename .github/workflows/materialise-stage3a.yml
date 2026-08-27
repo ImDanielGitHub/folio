@@ -116,6 +116,22 @@ jobs:
           PY
           tar -xJf /tmp/stage3a-product.tar.xz
 
+      - name: Correct safe-integer regression fixture
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("apps/desktop/tests/protocol.test.ts")
+          text = path.read_text(encoding="utf-8")
+          old = '  invalid.totals.currentBalanceMinor = "504576";\n'
+          new = '  invalid.totals.currentBalanceMinor = Number.MAX_SAFE_INTEGER + 1;\n'
+          if text.count(old) != 1:
+              raise SystemExit(
+                  "expected exactly one string-valued currentBalanceMinor regression fixture"
+              )
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
+
       - name: Install dependencies
         run: |
           pnpm install --frozen-lockfile
