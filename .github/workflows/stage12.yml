@@ -1,0 +1,259 @@
+name: Stage 12 release engineering
+
+on:
+  push:
+    branches:
+      - automation/stage-12-release-engineering
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  actions: read
+  security-events: read
+
+jobs:
+  build-review-and-merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ImDanielGitHub/folio
+      PRODUCT_BRANCH: stage/12-release-engineering
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      FOLIO_RELEASE_SIGNED: "false"
+      FOLIO_RELEASE_NOTARISED: "false"
+
+    steps:
+      - name: Check out stage automation
+        uses: actions/checkout@v4
+        with:
+          path: automation
+          fetch-depth: 1
+
+      - name: Wait for Stage 11 to be merged
+        run: |
+          for attempt in $(seq 1 280); do
+            count=$(gh pr list --repo "$REPOSITORY" --state merged \
+              --search "head:stage/11-model-measurement" \
+              --json number --jq 'length' 2>/dev/null || echo 0)
+            if [ "$count" -gt 0 ]; then exit 0; fi
+            echo "Waiting for the verified Stage 11 merge (${attempt}/280)."
+            sleep 15
+          done
+          echo "Stage 11 did not merge before the safety timeout." >&2
+          exit 1
+
+      - name: Check out the merged product base
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: repo
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Create an isolated product branch
+        working-directory: repo
+        run: |
+          if git ls-remote --exit-code --heads origin "$PRODUCT_BRANCH" >/dev/null 2>&1; then
+            echo "${PRODUCT_BRANCH} already exists; refusing an implicit overwrite." >&2
+            exit 1
+          fi
+          git switch -c "$PRODUCT_BRANCH"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: repo/pnpm-lock.yaml
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Install the merged locked baseline
+        working-directory: repo
+        run: |
+          pnpm install --frozen-lockfile
+          uv sync --project services/api --frozen
+
+      - name: Materialise Stage 12 tests and implementation
+        working-directory: repo
+        run: |
+          python ../automation/automation/stage12_impl.py
+          python ../automation/automation/stage12_post.py
+
+      - name: Preserve only release metadata tests for the red check
+        working-directory: repo
+        run: |
+          rm -rf /tmp/stage12-tests
+          mkdir -p /tmp/stage12-tests
+          cp scripts/release_metadata.test.mjs /tmp/stage12-tests/
+          git reset --hard HEAD
+          git clean -fd
+          mkdir -p scripts
+          cp /tmp/stage12-tests/release_metadata.test.mjs scripts/
+
+      - name: Verify Stage 12 metadata test fails before implementation
+        working-directory: repo
+        run: |
+          set +e
+          node --test scripts/release_metadata.test.mjs
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "Stage 12 release metadata unexpectedly passed on the unmodified product." >&2
+            exit 1
+          fi
+          echo "RED confirmed for sidecar packaging, release metadata and claim boundaries."
+
+      - name: Restore the clean product and apply Stage 12
+        working-directory: repo
+        run: |
+          git reset --hard HEAD
+          git clean -fd
+          python ../automation/automation/stage12_impl.py
+          python ../automation/automation/stage12_post.py
+          pnpm install --lockfile-only
+          uv lock --project services/api
+          pnpm install --frozen-lockfile
+          uv sync --project services/api --frozen
+          pnpm lint:fix
+
+      - name: Verify targeted Stage 12 metadata and SBOM behaviour
+        working-directory: repo
+        env:
+          FOLIO_SESSION_TOKEN: stage12-ci-session
+          VITE_FOLIO_SESSION_TOKEN: stage12-ci-session
+        run: pnpm release:check
+
+      - name: Run the complete repository verification gate
+        working-directory: repo
+        env:
+          LM_STUDIO_BASE_URL: http://127.0.0.1:65530/v1
+          OPENAI_API_KEY: ""
+          FOLIO_SESSION_TOKEN: stage12-ci-session
+          VITE_FOLIO_SESSION_TOKEN: stage12-ci-session
+          TELEGRAM_LIVE_ENABLED: "false"
+        run: pnpm verify
+
+      - name: Install packaged-runtime system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb libgtk-3-0 libnss3 libasound2t64 libgbm1 libxss1 libxtst6
+
+      - name: Build the unpacked release candidate
+        working-directory: repo
+        env:
+          FOLIO_SESSION_TOKEN: stage12-ci-session
+          VITE_FOLIO_SESSION_TOKEN: stage12-ci-session
+        run: pnpm package:dir
+
+      - name: Smoke the packaged Electron and API sidecar journey
+        working-directory: repo
+        run: xvfb-run -a node scripts/smoke_packaged.mjs dist-release/linux-unpacked/folio
+
+      - name: Create unsigned release evidence
+        working-directory: repo
+        run: |
+          tar -czf dist-release/folio-linux-unpacked.tar.gz \
+            -C dist-release linux-unpacked
+          node scripts/create_release_receipt.mjs \
+            dist-release/folio-linux-unpacked.tar.gz \
+            dist-release/folio-sbom.spdx.json
+
+      - name: Upload packaged evidence from the stage workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: folio-stage12-unsigned-${{ github.sha }}
+          path: |
+            repo/dist-release/folio-linux-unpacked.tar.gz
+            repo/dist-release/folio-sbom.spdx.json
+            repo/dist-release/release-receipt.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Commit and push the verified stage
+        id: commit
+        working-directory: repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            .github/workflows apps/desktop docs package.json pnpm-lock.yaml scripts \
+            services/api/pyproject.toml services/api/uv.lock services/api/src
+          git diff --cached --check
+          git commit -m "build: package Folio with a verified local API sidecar"
+          git push --set-upstream origin "$PRODUCT_BRANCH"
+          echo "head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Open the Stage 12 pull request
+        id: pr
+        working-directory: repo
+        run: |
+          cat > /tmp/stage12-body.md <<'EOF'
+          ## Stage 12 of the Folio audit programme
+
+          This stage turns the source tree into an inspectable unsigned release candidate with a packaged local API.
+
+          ### Changes
+
+          - package the FastAPI service as a PyInstaller sidecar with bundled read-only fixtures and schemas
+          - allocate an ephemeral loopback port and private user-data database at runtime
+          - pass the per-launch session only through the child-process environment and preload bridge
+          - verify the sidecar SHA-256 and size before starting it
+          - wait for both health and authenticated capability checks before opening the renderer
+          - package the renderer and sidecar together with Electron Builder and ASAR
+          - add a packaged smoke journey that proves API and Electron window readiness
+          - generate an SPDX 2.3 dependency inventory and SHA-256 release receipt
+          - keep every generated candidate explicitly unsigned, unnotarised and unpublished
+          - add dependency review, CodeQL and a manual cross-platform candidate workflow
+          - reject signing claims that are enabled only through environment flags
+
+          ### Evidence
+
+          The stage workflow records a red release-metadata test, runs the full repository gate, builds the Linux package, launches it under Xvfb, waits for the authenticated sidecar and Electron marker, and uploads hashes, SBOM and an unsigned receipt. The PR is merged only after its own CI, dependency review and CodeQL checks are green.
+
+          ### Audit coverage
+
+          Primary items: packaged distribution I189-I200, release reproducibility B346-B358, supply-chain security B359-B374, packaged runtime B375-B388 and release proof boundaries B389-B400.
+          EOF
+          url=$(gh pr create \
+            --repo "$REPOSITORY" \
+            --base main \
+            --head "$PRODUCT_BRANCH" \
+            --title "Stage 12: package Folio with a verified local API sidecar" \
+            --body-file /tmp/stage12-body.md)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for Stage 12 pull-request checks
+        run: |
+          sleep 20
+          for attempt in $(seq 1 60); do
+            if gh pr checks "${{ steps.pr.outputs.url }}" --watch --fail-fast; then exit 0; fi
+            echo "Stage 12 checks are not ready or not green (${attempt}/60)."
+            sleep 15
+          done
+          exit 1
+
+      - name: Merge verified Stage 12
+        run: |
+          gh pr merge "${{ steps.pr.outputs.url }}" \
+            --squash \
+            --delete-branch \
+            --match-head-commit "${{ steps.commit.outputs.head_sha }}"
