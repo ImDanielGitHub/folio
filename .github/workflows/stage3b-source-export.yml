@@ -16,7 +16,7 @@ jobs:
       - name: Check out exact current main
         uses: actions/checkout@v4
         with:
-          ref: f9d48cb95e4b7c8cd8e8c869b8a6d36baa2ccbb3
+          ref: f9d48cbea3640ab371522129d7c6eda5e66d7e18
           fetch-depth: 1
 
       - name: Archive current main
