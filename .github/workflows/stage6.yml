@@ -1,0 +1,207 @@
+name: Stage 6 runtime contracts
+
+on:
+  push:
+    branches:
+      - automation/stage-6-runtime-contracts
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  actions: read
+
+jobs:
+  build-review-and-merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ImDanielGitHub/folio
+      PRODUCT_BRANCH: stage/06-runtime-contracts
+
+    steps:
+      - name: Check out stage automation
+        uses: actions/checkout@v4
+        with:
+          path: automation
+          fetch-depth: 1
+
+      - name: Wait for Stage 5 to be merged
+        run: |
+          for attempt in $(seq 1 160); do
+            count=$(gh pr list --repo "$REPOSITORY" --state merged \
+              --search "head:stage/05-run-lifecycle" \
+              --json number --jq 'length' 2>/dev/null || echo 0)
+            if [ "$count" -gt 0 ]; then exit 0; fi
+            echo "Waiting for the verified Stage 5 merge (${attempt}/160)."
+            sleep 15
+          done
+          echo "Stage 5 did not merge before the safety timeout." >&2
+          exit 1
+
+      - name: Check out the merged product base
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: repo
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Create an isolated product branch
+        working-directory: repo
+        run: |
+          if git ls-remote --exit-code --heads origin "$PRODUCT_BRANCH" >/dev/null 2>&1; then
+            echo "${PRODUCT_BRANCH} already exists; refusing an implicit overwrite." >&2
+            exit 1
+          fi
+          git switch -c "$PRODUCT_BRANCH"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: repo/pnpm-lock.yaml
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Install locked dependencies
+        working-directory: repo
+        run: |
+          pnpm install --frozen-lockfile
+          uv sync --project services/api --frozen
+
+      - name: Materialise Stage 6 tests and implementation
+        working-directory: repo
+        run: python ../automation/automation/stage6_impl.py
+
+      - name: Preserve only renderer contract tests for the red check
+        working-directory: repo
+        run: |
+          rm -rf /tmp/stage6-tests
+          mkdir -p /tmp/stage6-tests
+          cp apps/desktop/src/runtimeContracts.test.ts /tmp/stage6-tests/
+          cp apps/desktop/src/httpErrors.test.ts /tmp/stage6-tests/
+          cp apps/desktop/tsconfig.tests.json /tmp/stage6-tests/
+          git reset --hard HEAD
+          git clean -fd
+          mkdir -p apps/desktop/src
+          cp /tmp/stage6-tests/runtimeContracts.test.ts apps/desktop/src/
+          cp /tmp/stage6-tests/httpErrors.test.ts apps/desktop/src/
+          cp /tmp/stage6-tests/tsconfig.tests.json apps/desktop/
+
+      - name: Verify Stage 6 tests fail before implementation
+        working-directory: repo/apps/desktop
+        run: |
+          set +e
+          pnpm exec tsc -p tsconfig.tests.json
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "Stage 6 runtime-contract tests unexpectedly compiled without implementation." >&2
+            exit 1
+          fi
+          echo "RED confirmed for full snapshots, problem details and renderer contract tests."
+
+      - name: Restore the clean product and apply Stage 6
+        working-directory: repo
+        run: |
+          git reset --hard HEAD
+          git clean -fd
+          python ../automation/automation/stage6_impl.py
+          pnpm lint:fix
+
+      - name: Verify targeted Stage 6 behaviour
+        working-directory: repo
+        run: pnpm --filter @folio/desktop test:renderer-contracts
+
+      - name: Run the complete repository verification gate
+        working-directory: repo
+        env:
+          LM_STUDIO_BASE_URL: http://127.0.0.1:65530/v1
+          OPENAI_API_KEY: ""
+          FOLIO_SESSION_TOKEN: stage6-ci-session
+          VITE_FOLIO_SESSION_TOKEN: stage6-ci-session
+        run: pnpm verify
+
+      - name: Commit and push the verified stage
+        id: commit
+        working-directory: repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/desktop
+          git diff --cached --check
+          git commit -m "test: enforce renderer runtime finance contracts"
+          git push --set-upstream origin "$PRODUCT_BRANCH"
+          echo "head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Open the Stage 6 pull request
+        id: pr
+        working-directory: repo
+        run: |
+          cat > /tmp/stage6-body.md <<'EOF'
+          ## Stage 6 of the Folio audit programme
+
+          This stage turns the renderer boundary from a compile-time approximation into executable validation of every finance snapshot and run event it accepts.
+
+          ### Changes
+
+          - validate complete workspace snapshots at runtime
+          - validate all closed surface blocks, actions and nested enum values
+          - reject unsafe JavaScript integers for minor-unit money
+          - reject duplicate block, action, turn, source, activity and artefact identifiers
+          - validate embedded snapshots and surfaces inside ordered run events
+          - preserve structured `application/problem+json` errors without leaking raw bodies
+          - add renderer contract tests to the desktop verification gate
+          - add an accessible data-table equivalent for the cash chart
+          - accept legitimate failed-turn and active-question metadata in the typed snapshot model
+
+          ### Evidence
+
+          The workflow records a red compile against the merged Stage 5 base, then executes the renderer contract suite and the complete repository gate before opening this PR. Merge remains conditional on PR checks.
+
+          ### Audit coverage
+
+          Primary items: contract consistency B167-B180, runtime validation B188-B200, accessibility I061-I069 and trustworthy failure presentation I071-I079.
+          EOF
+          url=$(gh pr create \
+            --repo "$REPOSITORY" \
+            --base main \
+            --head "$PRODUCT_BRANCH" \
+            --title "Stage 6: enforce complete renderer runtime contracts" \
+            --body-file /tmp/stage6-body.md)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for Stage 6 pull-request checks
+        run: |
+          sleep 12
+          for attempt in $(seq 1 36); do
+            if gh pr checks "${{ steps.pr.outputs.url }}" --watch --fail-fast; then exit 0; fi
+            echo "Stage 6 checks are not ready or not green (${attempt}/36)."
+            sleep 10
+          done
+          exit 1
+
+      - name: Merge verified Stage 6
+        run: |
+          gh pr merge "${{ steps.pr.outputs.url }}" \
+            --squash \
+            --delete-branch \
+            --match-head-commit "${{ steps.commit.outputs.head_sha }}"
