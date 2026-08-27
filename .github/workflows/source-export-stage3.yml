@@ -1,0 +1,33 @@
+name: Stage 3 Source Export
+
+on:
+  push:
+    branches:
+      - agent/stage3-source-export-20260827
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out Stage 3 staging branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/client-protocol-20260826
+          fetch-depth: 1
+
+      - name: Create source archive
+        run: |
+          tar --exclude=.git --exclude=node_modules --exclude=services/api/.venv \
+            -czf /tmp/folio-stage3-staging.tar.gz .
+
+      - name: Upload source archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: folio-stage3-staging
+          path: /tmp/folio-stage3-staging.tar.gz
+          if-no-files-found: error
+          retention-days: 1
