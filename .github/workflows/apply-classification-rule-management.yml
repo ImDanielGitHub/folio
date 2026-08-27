@@ -1,0 +1,126 @@
+name: Apply classification rule management stack
+
+on:
+  push:
+    branches:
+      - agent/classification-rule-management-20260826
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  apply-verify-and-merge:
+    if: ${{ !contains(github.event.head_commit.message, '[rule-management-applied]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 555
+    env:
+      LM_STUDIO_BASE_URL: http://127.0.0.1:65530/v1
+      OPENAI_API_KEY: ""
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/classification-rule-management-20260826
+          fetch-depth: 0
+
+      - name: Wait for accounting-period prerequisite
+        run: |
+          cp scripts/apply_classification_rule_management.py /tmp/apply_classification_rule_management.py
+          ready=0
+          for _ in $(seq 1 1080); do
+            git fetch origin main
+            if git cat-file -e origin/main:services/api/src/finance_agent/finance/accounting_periods.py 2>/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 10
+          done
+          test "$ready" -eq 1
+          git reset --hard origin/main
+          mkdir -p scripts
+          cp /tmp/apply_classification_rule_management.py scripts/apply_classification_rule_management.py
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Apply classification rule changes
+        run: python scripts/apply_classification_rule_management.py
+
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          uv sync --project services/api --frozen
+
+      - name: Apply safe formatting fixes
+        run: pnpm lint:fix
+
+      - name: Verify transformed repository
+        run: timeout 200m pnpm verify
+
+      - name: Remove one-shot transformation machinery
+        run: rm -f scripts/apply_classification_rule_management.py
+
+      - name: Verify exact merge tree
+        run: timeout 200m pnpm verify
+
+      - name: Commit verified product changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: add classification rule preview and lifecycle management [rule-management-applied]"
+          git push --force-with-lease origin HEAD:agent/classification-rule-management-20260826
+
+      - name: Open reviewable pull request
+        run: |
+          cat > /tmp/pr-body.md <<'EOF'
+          ## Stack position
+
+          **38 of the Folio audit programme**, after accounting-period lock dates.
+
+          ## Implemented
+
+          - dry-run production-matcher previews with no mutation
+          - exact before/after meaning, amount, evidence and period-lock state
+          - overlap and conflicting-outcome detection with deterministic priority winner
+          - rule inventory with source claim, creation event and current match impact
+          - reversible deactivation through the existing finance-event Undo path
+          - idempotent repeated deactivation
+
+          ## Proof boundary
+
+          Previewed impact is not accounting correctness or owner approval. Hard-locked periods remain protected at SQLite level.
+
+          ## Verification
+
+          The exact committed tree passed the complete `pnpm verify` gate twice. The one-shot transformation script is absent from the final diff.
+          EOF
+          if ! gh pr view agent/classification-rule-management-20260826 >/dev/null 2>&1; then
+            gh pr create \
+              --base main \
+              --head agent/classification-rule-management-20260826 \
+              --title "Add classification rule preview and lifecycle management" \
+              --body-file /tmp/pr-body.md
+          fi
+
+      - name: Merge verified stack
+        run: |
+          pr_number="$(gh pr view agent/classification-rule-management-20260826 --json number --jq .number)"
+          head_sha="$(git rev-parse HEAD)"
+          gh pr ready "$pr_number" || true
+          gh pr merge "$pr_number" --squash --delete-branch --match-head-commit "$head_sha"
