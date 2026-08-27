@@ -1,0 +1,214 @@
+name: Stage 2 finance correctness
+
+on:
+  push:
+    branches:
+      - automation/stage-2-finance-correctness
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  actions: read
+
+jobs:
+  build-review-and-merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ImDanielGitHub/folio
+      PRODUCT_BRANCH: stage/02-finance-correctness
+
+    steps:
+      - name: Check out stage automation
+        uses: actions/checkout@v4
+        with:
+          path: automation
+          fetch-depth: 1
+
+      - name: Wait for Stage 1 to be merged
+        run: |
+          for attempt in $(seq 1 80); do
+            state=$(gh pr view 1 --repo "$REPOSITORY" --json state --jq .state 2>/dev/null || true)
+            if [ "$state" = "MERGED" ]; then
+              exit 0
+            fi
+            if [ "$state" = "CLOSED" ]; then
+              echo "Stage 1 was closed without merging." >&2
+              exit 1
+            fi
+            echo "Stage 1 is ${state:-not readable}; waiting (${attempt}/80)."
+            sleep 15
+          done
+          echo "Stage 1 did not merge before the safety timeout." >&2
+          exit 1
+
+      - name: Check out the merged product base
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: repo
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Refuse to overwrite an existing stage branch
+        working-directory: repo
+        run: |
+          if git ls-remote --exit-code --heads origin "$PRODUCT_BRANCH" >/dev/null 2>&1; then
+            echo "${PRODUCT_BRANCH} already exists; refusing an implicit overwrite." >&2
+            exit 1
+          fi
+          git switch -c "$PRODUCT_BRANCH"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: repo/pnpm-lock.yaml
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Install locked dependencies
+        working-directory: repo
+        run: |
+          pnpm install --frozen-lockfile
+          uv sync --project services/api --frozen
+
+      - name: Materialise Stage 2 tests and expected implementation
+        working-directory: repo
+        run: python ../automation/automation/stage2_impl.py
+
+      - name: Preserve only the Stage 2 tests for the red check
+        working-directory: repo
+        run: |
+          rm -rf /tmp/stage2-tests
+          mkdir -p /tmp/stage2-tests
+          cp -a services/api/tests/. /tmp/stage2-tests/
+          git reset --hard HEAD
+          git clean -fd
+          rm -rf services/api/tests
+          mkdir -p services/api/tests
+          cp -a /tmp/stage2-tests/. services/api/tests/
+
+      - name: Verify the regression tests fail before implementation
+        working-directory: repo
+        run: |
+          set +e
+          uv run --project services/api pytest -q \
+            services/api/tests/finance/test_production_invariants.py \
+            services/api/tests/connectors/test_plaid_fixture.py \
+            services/api/tests/connectors/test_plaid_live.py
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "Stage 2 regression tests unexpectedly passed on the unmodified product." >&2
+            exit 1
+          fi
+          echo "RED confirmed: the clean Stage 1 product does not satisfy Stage 2 invariants."
+
+      - name: Restore the clean product and apply Stage 2
+        working-directory: repo
+        run: |
+          git reset --hard HEAD
+          git clean -fd
+          python ../automation/automation/stage2_impl.py
+          pnpm lint:fix
+
+      - name: Verify Stage 2 targeted behaviour
+        working-directory: repo
+        run: |
+          uv run --project services/api pytest -q \
+            services/api/tests/finance/test_production_invariants.py \
+            services/api/tests/connectors/test_plaid_fixture.py \
+            services/api/tests/connectors/test_plaid_live.py
+
+      - name: Run the complete repository verification gate
+        working-directory: repo
+        env:
+          LM_STUDIO_BASE_URL: http://127.0.0.1:65530/v1
+          OPENAI_API_KEY: ""
+        run: pnpm verify
+
+      - name: Commit and push the verified stage
+        id: commit
+        working-directory: repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add services/api/src services/api/tests
+          git diff --cached --check
+          git commit -m "fix: enforce finance state and currency invariants"
+          git push --set-upstream origin "$PRODUCT_BRANCH"
+          echo "head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Open the Stage 2 pull request
+        id: pr
+        working-directory: repo
+        run: |
+          cat > /tmp/stage2-body.md <<'EOF'
+          ## Stage 2 of the Folio audit programme
+
+          This stage addresses the highest-risk finance-state defects before broader product expansion.
+
+          ### Changes
+
+          - quarantine Plaid USD evidence instead of allowing it to affect the NZD ledger
+          - migrate any previously persisted Plaid transactions to ignored state
+          - identify Daily Close from the complete material finance-state manifest
+          - include provider evidence, active rules, active claims, reserve policy and state revision
+          - restrict deterministic fixture timestamps to the sealed canonical fixture only
+          - use real or injected time for non-fixture runs and report actual committed counts
+          - persist model mode per conversation turn
+          - prevent claim and dialogue-frame identifiers crossing workspace boundaries
+
+          ### Evidence
+
+          The workflow proves the regression tests fail on the merged Stage 1 base, then runs the targeted suite and the full `pnpm verify` gate before pushing this branch. The PR is merged only after its own checks pass.
+
+          ### Audit coverage
+
+          Primary items: financial correctness B001-B006, job identity B011-B018, provenance B021-B025, workspace isolation B031-B034.
+          EOF
+          url=$(gh pr create \
+            --repo "$REPOSITORY" \
+            --base main \
+            --head "$PRODUCT_BRANCH" \
+            --title "Stage 2: enforce currency, close and provenance invariants" \
+            --body-file /tmp/stage2-body.md)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for Stage 2 pull-request checks
+        run: |
+          sleep 12
+          for attempt in $(seq 1 36); do
+            if gh pr checks "${{ steps.pr.outputs.url }}" --watch --fail-fast; then
+              exit 0
+            fi
+            echo "Stage 2 checks are not ready or not green (${attempt}/36)."
+            sleep 10
+          done
+          exit 1
+
+      - name: Merge verified Stage 2
+        run: |
+          gh pr merge "${{ steps.pr.outputs.url }}" \
+            --squash \
+            --delete-branch \
+            --match-head-commit "${{ steps.commit.outputs.head_sha }}"
