@@ -132,6 +132,141 @@ jobs:
           path.write_text(text.replace(old, new), encoding="utf-8")
           PY
 
+      - name: Apply final protocol security review fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          protocol = Path("apps/desktop/src/protocol.ts")
+          text = protocol.read_text(encoding="utf-8")
+          old = '''export function shouldRetryRequest(
+            method: string,
+            status: number | null,
+            networkFailure = false,
+          ): boolean {
+            if (!SAFE_METHODS.has(method.toUpperCase())) return false;
+            if (networkFailure) return true;
+            return status !== null && RETRYABLE_STATUSES.has(status);
+          }
+          '''
+          new = '''export function shouldRetryRequest(
+            method: string,
+            status: number | null,
+            networkFailure = false,
+            declaredRetryable = true,
+          ): boolean {
+            if (!declaredRetryable || !SAFE_METHODS.has(method.toUpperCase())) return false;
+            if (networkFailure) return true;
+            return status !== null && RETRYABLE_STATUSES.has(status);
+          }
+          '''
+          if text.count(old) != 1:
+              raise SystemExit("expected one retry policy implementation")
+          protocol.write_text(text.replace(old, new), encoding="utf-8")
+
+          transport = Path("apps/desktop/src/transport.ts")
+          text = transport.read_text(encoding="utf-8")
+          old = "        || !shouldRetryRequest(method, response.status)\n"
+          new = (
+              "        || !shouldRetryRequest(\n"
+              "          method, response.status, false, problem.retryable,\n"
+              "        )\n"
+          )
+          if text.count(old) != 1:
+              raise SystemExit("expected one response retry decision")
+          transport.write_text(text.replace(old, new), encoding="utf-8")
+
+          protocol_test = Path("apps/desktop/tests/protocol.test.ts")
+          text = protocol_test.read_text(encoding="utf-8")
+          old = '  assert.equal(shouldRetryRequest("GET", 503), true);\n'
+          new = old + (
+              '  assert.equal(shouldRetryRequest("GET", 503, false, false), false);\n'
+          )
+          if text.count(old) != 1:
+              raise SystemExit("expected one retry policy assertion anchor")
+          protocol_test.write_text(text.replace(old, new), encoding="utf-8")
+
+          problems = Path("services/api/src/finance_agent/api/problems.py")
+          text = problems.read_text(encoding="utf-8")
+          old = '''    @app.exception_handler(KeyError)
+            async def missing_resource(request: Request, _: KeyError) -> JSONResponse:
+                return problem_response(
+                    request,
+                    status=404,
+                    detail="The requested local resource was not found.",
+                    code="not_found",
+                    retryable=False,
+                )
+
+
+          __all__ = ["install_problem_handlers", "problem_payload", "problem_response"]
+          '''
+          new = '''    @app.exception_handler(KeyError)
+            async def missing_resource(request: Request, _: KeyError) -> JSONResponse:
+                return problem_response(
+                    request,
+                    status=404,
+                    detail="The requested local resource was not found.",
+                    code="not_found",
+                    retryable=False,
+                )
+
+            @app.exception_handler(Exception)
+            async def unexpected_problem(request: Request, _: Exception) -> JSONResponse:
+                return problem_response(
+                    request,
+                    status=500,
+                    detail="The local Folio service could not complete the request.",
+                    code="internal_error",
+                    retryable=False,
+                )
+
+
+          __all__ = ["install_problem_handlers", "problem_payload", "problem_response"]
+          '''
+          if text.count(old) != 1:
+              raise SystemExit("expected one problem-handler insertion anchor")
+          problems.write_text(text.replace(old, new), encoding="utf-8")
+
+          problem_test = Path("services/api/tests/api/test_problem_details.py")
+          text = problem_test.read_text(encoding="utf-8")
+          addition = '''
+
+          class _ExplodingSnapshotService:
+              async def workspace_snapshot(self, workspace_id: str) -> dict[str, object]:
+                  del workspace_id
+                  raise RuntimeError("sensitive database internals")
+
+
+          @pytest.mark.asyncio
+          async def test_unexpected_errors_use_generic_problem_details(tmp_path: Path) -> None:
+              app = create_app(database_path=tmp_path / "unexpected.sqlite3", auto_seed=True)
+              original = app.state.finance_route_services
+              app.state.finance_route_services = _ExplodingSnapshotService()
+              try:
+                  async with httpx.AsyncClient(
+                      transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
+                      base_url="http://test",
+                  ) as client:
+                      response = await client.get("/v1/workspaces/ws_koru_studio/snapshot")
+              finally:
+                  await original.aclose()
+
+              assert response.status_code == 500
+              assert response.headers["content-type"].startswith("application/problem+json")
+              payload = response.json()
+              assert payload["code"] == "internal_error"
+              assert payload["retryable"] is False
+              assert payload["detail"] == (
+                  "The local Folio service could not complete the request."
+              )
+              assert "sensitive database internals" not in response.text
+          '''
+          if "test_unexpected_errors_use_generic_problem_details" in text:
+              raise SystemExit("unexpected-error regression already exists")
+          problem_test.write_text(text + addition, encoding="utf-8")
+          PY
+
       - name: Install dependencies
         run: |
           pnpm install --frozen-lockfile
