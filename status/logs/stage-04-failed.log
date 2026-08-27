@@ -1,0 +1,139 @@
+build-review-and-merge	Wait for Stage 3 to be merged	﻿2026-08-27T04:23:52.0649514Z ##[group]Run for attempt in $(seq 1 120); do
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:23:52.0651208Z ^[[36;1mfor attempt in $(seq 1 120); do^[[0m
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:23:52.0652924Z ^[[36;1m  count=$(gh pr list --repo "$REPOSITORY" --state merged \^[[0m
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:23:52.0654770Z ^[[36;1m    --search "head:stage/03-local-security" \^[[0m
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:23:52.0656503Z ^[[36;1m    --json number --jq 'length' 2>/dev/null || echo 0)^[[0m
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:23:52.0658228Z ^[[36;1m  if [ "$count" -gt 0 ]; then exit 0; fi^[[0m
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:23:52.0660239Z ^[[36;1m  echo "Waiting for the verified Stage 3 merge (${attempt}/120)."^[[0m
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:23:52.0661987Z ^[[36;1m  sleep 15^[[0m
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:23:52.0663047Z ^[[36;1mdone^[[0m
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:23:52.0664387Z ^[[36;1mecho "Stage 3 did not merge before the safety timeout." >&2^[[0m
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:23:52.0666164Z ^[[36;1mexit 1^[[0m
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:23:52.0721757Z shell: /usr/bin/bash -e {0}
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:23:52.0722981Z env:
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:23:52.0733220Z   GH_TOKEN: ***
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:23:52.0734300Z   REPOSITORY: ImDanielGitHub/folio
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:23:52.0735681Z   PRODUCT_BRANCH: stage/04-data-durability
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:23:52.0737017Z ##[endgroup]
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:23:52.6800045Z Waiting for the verified Stage 3 merge (1/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:24:08.0025674Z Waiting for the verified Stage 3 merge (2/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:24:23.2977055Z Waiting for the verified Stage 3 merge (3/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:24:38.6592798Z Waiting for the verified Stage 3 merge (4/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:24:53.8854709Z Waiting for the verified Stage 3 merge (5/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:25:09.2753398Z Waiting for the verified Stage 3 merge (6/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:25:24.5305547Z Waiting for the verified Stage 3 merge (7/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:25:39.7718507Z Waiting for the verified Stage 3 merge (8/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:25:55.0226817Z Waiting for the verified Stage 3 merge (9/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:26:10.4025104Z Waiting for the verified Stage 3 merge (10/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:26:25.6413781Z Waiting for the verified Stage 3 merge (11/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:26:41.1202230Z Waiting for the verified Stage 3 merge (12/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:26:56.3870032Z Waiting for the verified Stage 3 merge (13/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:27:11.9583290Z Waiting for the verified Stage 3 merge (14/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:27:27.2193205Z Waiting for the verified Stage 3 merge (15/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:27:42.4939239Z Waiting for the verified Stage 3 merge (16/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:27:57.7400646Z Waiting for the verified Stage 3 merge (17/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:28:12.9817493Z Waiting for the verified Stage 3 merge (18/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:28:28.2696938Z Waiting for the verified Stage 3 merge (19/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:28:43.4946228Z Waiting for the verified Stage 3 merge (20/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:28:58.7568317Z Waiting for the verified Stage 3 merge (21/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:29:14.0079507Z Waiting for the verified Stage 3 merge (22/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:29:29.2541902Z Waiting for the verified Stage 3 merge (23/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:29:44.5458836Z Waiting for the verified Stage 3 merge (24/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:29:59.8435479Z Waiting for the verified Stage 3 merge (25/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:30:15.1228722Z Waiting for the verified Stage 3 merge (26/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:30:30.3577816Z Waiting for the verified Stage 3 merge (27/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:30:45.8392583Z Waiting for the verified Stage 3 merge (28/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:31:01.1593286Z Waiting for the verified Stage 3 merge (29/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:31:16.5467132Z Waiting for the verified Stage 3 merge (30/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:31:31.8552212Z Waiting for the verified Stage 3 merge (31/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:31:47.1486697Z Waiting for the verified Stage 3 merge (32/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:32:02.4673858Z Waiting for the verified Stage 3 merge (33/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:32:17.7694471Z Waiting for the verified Stage 3 merge (34/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:32:33.0449944Z Waiting for the verified Stage 3 merge (35/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:32:48.2930612Z Waiting for the verified Stage 3 merge (36/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:33:03.5291264Z Waiting for the verified Stage 3 merge (37/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:33:18.8165833Z Waiting for the verified Stage 3 merge (38/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:33:34.1869864Z Waiting for the verified Stage 3 merge (39/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:33:49.4259545Z Waiting for the verified Stage 3 merge (40/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:34:04.6780377Z Waiting for the verified Stage 3 merge (41/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:34:19.9155224Z Waiting for the verified Stage 3 merge (42/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:34:35.1975645Z Waiting for the verified Stage 3 merge (43/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:34:50.4934227Z Waiting for the verified Stage 3 merge (44/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:35:05.9248618Z Waiting for the verified Stage 3 merge (45/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:35:21.1892777Z Waiting for the verified Stage 3 merge (46/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:35:36.4200867Z Waiting for the verified Stage 3 merge (47/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:35:51.6606474Z Waiting for the verified Stage 3 merge (48/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:36:06.9216995Z Waiting for the verified Stage 3 merge (49/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:36:22.4635655Z Waiting for the verified Stage 3 merge (50/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:36:37.7264490Z Waiting for the verified Stage 3 merge (51/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:36:52.9819592Z Waiting for the verified Stage 3 merge (52/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:37:08.2175226Z Waiting for the verified Stage 3 merge (53/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:37:23.4595744Z Waiting for the verified Stage 3 merge (54/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:37:38.7114642Z Waiting for the verified Stage 3 merge (55/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:37:53.9834035Z Waiting for the verified Stage 3 merge (56/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:38:09.2221708Z Waiting for the verified Stage 3 merge (57/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:38:24.5678720Z Waiting for the verified Stage 3 merge (58/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:38:39.8832871Z Waiting for the verified Stage 3 merge (59/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:38:55.1710149Z Waiting for the verified Stage 3 merge (60/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:39:10.4788539Z Waiting for the verified Stage 3 merge (61/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:39:25.8177496Z Waiting for the verified Stage 3 merge (62/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:39:41.1669405Z Waiting for the verified Stage 3 merge (63/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:39:56.3960556Z Waiting for the verified Stage 3 merge (64/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:40:11.6969339Z Waiting for the verified Stage 3 merge (65/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:40:26.9829777Z Waiting for the verified Stage 3 merge (66/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:40:42.2411938Z Waiting for the verified Stage 3 merge (67/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:40:57.5003983Z Waiting for the verified Stage 3 merge (68/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:41:12.7842185Z Waiting for the verified Stage 3 merge (69/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:41:28.0401026Z Waiting for the verified Stage 3 merge (70/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:41:43.2654326Z Waiting for the verified Stage 3 merge (71/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:41:58.5341965Z Waiting for the verified Stage 3 merge (72/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:42:13.8105415Z Waiting for the verified Stage 3 merge (73/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:42:29.0560708Z Waiting for the verified Stage 3 merge (74/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:42:44.3133252Z Waiting for the verified Stage 3 merge (75/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:42:59.6987292Z Waiting for the verified Stage 3 merge (76/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:43:15.0587135Z Waiting for the verified Stage 3 merge (77/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:43:30.4924935Z Waiting for the verified Stage 3 merge (78/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:43:45.7132780Z Waiting for the verified Stage 3 merge (79/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:44:01.1322241Z Waiting for the verified Stage 3 merge (80/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:44:16.4637753Z Waiting for the verified Stage 3 merge (81/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:44:31.8639305Z Waiting for the verified Stage 3 merge (82/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:44:47.3970340Z Waiting for the verified Stage 3 merge (83/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:45:02.7244071Z Waiting for the verified Stage 3 merge (84/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:45:18.0169989Z Waiting for the verified Stage 3 merge (85/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:45:33.3352864Z Waiting for the verified Stage 3 merge (86/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:45:48.5645910Z Waiting for the verified Stage 3 merge (87/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:46:03.7852480Z Waiting for the verified Stage 3 merge (88/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:46:19.1275986Z Waiting for the verified Stage 3 merge (89/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:46:34.4322889Z Waiting for the verified Stage 3 merge (90/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:46:49.6692160Z Waiting for the verified Stage 3 merge (91/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:47:04.9267437Z Waiting for the verified Stage 3 merge (92/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:47:20.2046295Z Waiting for the verified Stage 3 merge (93/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:47:35.4606681Z Waiting for the verified Stage 3 merge (94/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:47:50.6950967Z Waiting for the verified Stage 3 merge (95/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:48:05.9550525Z Waiting for the verified Stage 3 merge (96/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:48:21.1896872Z Waiting for the verified Stage 3 merge (97/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:48:36.4627362Z Waiting for the verified Stage 3 merge (98/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:48:51.6893601Z Waiting for the verified Stage 3 merge (99/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:49:07.3703916Z Waiting for the verified Stage 3 merge (100/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:49:22.6011257Z Waiting for the verified Stage 3 merge (101/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:49:37.8485747Z Waiting for the verified Stage 3 merge (102/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:49:53.1109803Z Waiting for the verified Stage 3 merge (103/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:50:08.3422401Z Waiting for the verified Stage 3 merge (104/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:50:23.5976066Z Waiting for the verified Stage 3 merge (105/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:50:38.8444949Z Waiting for the verified Stage 3 merge (106/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:50:54.2160420Z Waiting for the verified Stage 3 merge (107/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:51:09.5491843Z Waiting for the verified Stage 3 merge (108/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:51:24.8191529Z Waiting for the verified Stage 3 merge (109/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:51:40.0667597Z Waiting for the verified Stage 3 merge (110/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:51:55.3411704Z Waiting for the verified Stage 3 merge (111/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:52:10.6070092Z Waiting for the verified Stage 3 merge (112/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:52:25.8745189Z Waiting for the verified Stage 3 merge (113/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:52:41.1585463Z Waiting for the verified Stage 3 merge (114/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:52:56.3834778Z Waiting for the verified Stage 3 merge (115/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:53:11.9564515Z Waiting for the verified Stage 3 merge (116/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:53:27.1858345Z Waiting for the verified Stage 3 merge (117/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:53:42.4149618Z Waiting for the verified Stage 3 merge (118/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:53:57.6518112Z Waiting for the verified Stage 3 merge (119/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:54:12.9995400Z Waiting for the verified Stage 3 merge (120/120).
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:54:28.0012452Z Stage 3 did not merge before the safety timeout.
+build-review-and-merge	Wait for Stage 3 to be merged	2026-08-27T04:54:28.0032527Z ##[error]Process completed with exit code 1.

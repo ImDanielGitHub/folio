@@ -1,0 +1,121 @@
+build-review-and-merge	Wait for Stage 2 to be merged	﻿2026-08-27T04:19:47.6191607Z ##[group]Run for attempt in $(seq 1 100); do
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:19:47.6193214Z ^[[36;1mfor attempt in $(seq 1 100); do^[[0m
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:19:47.6195127Z ^[[36;1m  count=$(gh pr list --repo "$REPOSITORY" --state merged \^[[0m
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:19:47.6197082Z ^[[36;1m    --search "head:stage/02-finance-correctness" \^[[0m
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:19:47.6198909Z ^[[36;1m    --json number --jq 'length' 2>/dev/null || echo 0)^[[0m
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:19:47.6200545Z ^[[36;1m  if [ "$count" -gt 0 ]; then^[[0m
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:19:47.6201837Z ^[[36;1m    exit 0^[[0m
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:19:47.6202870Z ^[[36;1m  fi^[[0m
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:19:47.6204406Z ^[[36;1m  echo "Waiting for the verified Stage 2 merge (${attempt}/100)."^[[0m
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:19:47.6206172Z ^[[36;1m  sleep 15^[[0m
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:19:47.6207194Z ^[[36;1mdone^[[0m
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:19:47.6208539Z ^[[36;1mecho "Stage 2 did not merge before the safety timeout." >&2^[[0m
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:19:47.6210205Z ^[[36;1mexit 1^[[0m
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:19:47.6254289Z shell: /usr/bin/bash -e {0}
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:19:47.6255489Z env:
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:19:47.6266412Z   GH_TOKEN: ***
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:19:47.6267509Z   REPOSITORY: ImDanielGitHub/folio
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:19:47.6268830Z   PRODUCT_BRANCH: stage/03-local-security
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:19:47.6270143Z ##[endgroup]
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:19:48.4635241Z Waiting for the verified Stage 2 merge (1/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:20:03.7836060Z Waiting for the verified Stage 2 merge (2/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:20:19.1006111Z Waiting for the verified Stage 2 merge (3/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:20:34.4031619Z Waiting for the verified Stage 2 merge (4/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:20:50.8847719Z Waiting for the verified Stage 2 merge (5/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:21:06.1673315Z Waiting for the verified Stage 2 merge (6/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:21:21.5439864Z Waiting for the verified Stage 2 merge (7/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:21:36.8328533Z Waiting for the verified Stage 2 merge (8/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:21:52.1185086Z Waiting for the verified Stage 2 merge (9/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:22:07.4071003Z Waiting for the verified Stage 2 merge (10/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:22:22.7111450Z Waiting for the verified Stage 2 merge (11/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:22:38.0100080Z Waiting for the verified Stage 2 merge (12/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:22:53.2789308Z Waiting for the verified Stage 2 merge (13/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:23:08.6732926Z Waiting for the verified Stage 2 merge (14/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:23:23.9389779Z Waiting for the verified Stage 2 merge (15/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:23:39.3072405Z Waiting for the verified Stage 2 merge (16/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:23:54.7012056Z Waiting for the verified Stage 2 merge (17/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:24:10.0381742Z Waiting for the verified Stage 2 merge (18/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:24:25.3704300Z Waiting for the verified Stage 2 merge (19/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:24:40.6428963Z Waiting for the verified Stage 2 merge (20/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:24:55.9309739Z Waiting for the verified Stage 2 merge (21/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:25:11.2838192Z Waiting for the verified Stage 2 merge (22/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:25:26.5868123Z Waiting for the verified Stage 2 merge (23/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:25:41.8889281Z Waiting for the verified Stage 2 merge (24/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:25:57.1931556Z Waiting for the verified Stage 2 merge (25/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:26:12.4901859Z Waiting for the verified Stage 2 merge (26/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:26:27.7942830Z Waiting for the verified Stage 2 merge (27/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:26:43.0894491Z Waiting for the verified Stage 2 merge (28/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:26:58.3831507Z Waiting for the verified Stage 2 merge (29/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:27:13.7307557Z Waiting for the verified Stage 2 merge (30/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:27:29.1270316Z Waiting for the verified Stage 2 merge (31/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:27:44.3865188Z Waiting for the verified Stage 2 merge (32/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:27:59.6615422Z Waiting for the verified Stage 2 merge (33/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:28:14.9555538Z Waiting for the verified Stage 2 merge (34/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:28:30.2748811Z Waiting for the verified Stage 2 merge (35/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:28:45.5663886Z Waiting for the verified Stage 2 merge (36/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:29:00.8238731Z Waiting for the verified Stage 2 merge (37/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:29:16.1880663Z Waiting for the verified Stage 2 merge (38/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:29:31.5280224Z Waiting for the verified Stage 2 merge (39/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:29:46.8895190Z Waiting for the verified Stage 2 merge (40/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:30:02.2592536Z Waiting for the verified Stage 2 merge (41/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:30:17.5901429Z Waiting for the verified Stage 2 merge (42/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:30:32.9952216Z Waiting for the verified Stage 2 merge (43/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:30:48.2712694Z Waiting for the verified Stage 2 merge (44/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:31:03.5791208Z Waiting for the verified Stage 2 merge (45/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:31:18.8758910Z Waiting for the verified Stage 2 merge (46/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:31:34.1520235Z Waiting for the verified Stage 2 merge (47/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:31:49.5773632Z Waiting for the verified Stage 2 merge (48/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:32:04.9428246Z Waiting for the verified Stage 2 merge (49/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:32:20.2069545Z Waiting for the verified Stage 2 merge (50/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:32:35.5481155Z Waiting for the verified Stage 2 merge (51/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:32:50.9951340Z Waiting for the verified Stage 2 merge (52/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:33:06.3170491Z Waiting for the verified Stage 2 merge (53/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:33:21.6950905Z Waiting for the verified Stage 2 merge (54/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:33:37.0276364Z Waiting for the verified Stage 2 merge (55/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:33:52.4477803Z Waiting for the verified Stage 2 merge (56/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:34:07.7500515Z Waiting for the verified Stage 2 merge (57/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:34:23.0817822Z Waiting for the verified Stage 2 merge (58/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:34:38.4334022Z Waiting for the verified Stage 2 merge (59/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:34:53.6981487Z Waiting for the verified Stage 2 merge (60/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:35:08.9553787Z Waiting for the verified Stage 2 merge (61/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:35:24.2492799Z Waiting for the verified Stage 2 merge (62/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:35:39.6020523Z Waiting for the verified Stage 2 merge (63/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:35:54.9501461Z Waiting for the verified Stage 2 merge (64/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:36:10.2557330Z Waiting for the verified Stage 2 merge (65/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:36:25.6938856Z Waiting for the verified Stage 2 merge (66/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:36:41.1146981Z Waiting for the verified Stage 2 merge (67/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:36:56.4518700Z Waiting for the verified Stage 2 merge (68/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:37:11.7681789Z Waiting for the verified Stage 2 merge (69/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:37:27.1075445Z Waiting for the verified Stage 2 merge (70/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:37:42.4726269Z Waiting for the verified Stage 2 merge (71/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:37:57.8467477Z Waiting for the verified Stage 2 merge (72/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:38:13.1373649Z Waiting for the verified Stage 2 merge (73/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:38:28.4398541Z Waiting for the verified Stage 2 merge (74/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:38:43.8394985Z Waiting for the verified Stage 2 merge (75/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:38:59.3100098Z Waiting for the verified Stage 2 merge (76/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:39:14.6491263Z Waiting for the verified Stage 2 merge (77/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:39:30.0282079Z Waiting for the verified Stage 2 merge (78/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:39:45.3386871Z Waiting for the verified Stage 2 merge (79/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:40:00.6466129Z Waiting for the verified Stage 2 merge (80/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:40:15.9400772Z Waiting for the verified Stage 2 merge (81/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:40:31.2967243Z Waiting for the verified Stage 2 merge (82/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:40:46.6319437Z Waiting for the verified Stage 2 merge (83/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:41:01.9469021Z Waiting for the verified Stage 2 merge (84/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:41:17.2674694Z Waiting for the verified Stage 2 merge (85/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:41:32.5389438Z Waiting for the verified Stage 2 merge (86/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:41:47.7889891Z Waiting for the verified Stage 2 merge (87/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:42:03.0659237Z Waiting for the verified Stage 2 merge (88/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:42:18.4158539Z Waiting for the verified Stage 2 merge (89/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:42:33.8717211Z Waiting for the verified Stage 2 merge (90/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:42:49.1361928Z Waiting for the verified Stage 2 merge (91/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:43:04.4078145Z Waiting for the verified Stage 2 merge (92/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:43:19.6891891Z Waiting for the verified Stage 2 merge (93/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:43:34.9708700Z Waiting for the verified Stage 2 merge (94/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:43:50.2762423Z Waiting for the verified Stage 2 merge (95/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:44:05.5967504Z Waiting for the verified Stage 2 merge (96/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:44:20.9521423Z Waiting for the verified Stage 2 merge (97/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:44:36.2272830Z Waiting for the verified Stage 2 merge (98/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:44:51.5098618Z Waiting for the verified Stage 2 merge (99/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:45:06.8136689Z Waiting for the verified Stage 2 merge (100/100).
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:45:21.8153151Z Stage 2 did not merge before the safety timeout.
+build-review-and-merge	Wait for Stage 2 to be merged	2026-08-27T04:45:21.8171001Z ##[error]Process completed with exit code 1.

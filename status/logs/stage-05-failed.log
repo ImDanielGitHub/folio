@@ -1,0 +1,159 @@
+build-review-and-merge	Wait for Stage 4 to be merged	﻿2026-08-27T04:27:57.8734007Z ##[group]Run for attempt in $(seq 1 140); do
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:27:57.8735815Z ^[[36;1mfor attempt in $(seq 1 140); do^[[0m
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:27:57.8737398Z ^[[36;1m  count=$(gh pr list --repo "$REPOSITORY" --state merged \^[[0m
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:27:57.8739117Z ^[[36;1m    --search "head:stage/04-data-durability" \^[[0m
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:27:57.8740745Z ^[[36;1m    --json number --jq 'length' 2>/dev/null || echo 0)^[[0m
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:27:57.8742295Z ^[[36;1m  if [ "$count" -gt 0 ]; then exit 0; fi^[[0m
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:27:57.8744001Z ^[[36;1m  echo "Waiting for the verified Stage 4 merge (${attempt}/140)."^[[0m
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:27:57.8745912Z ^[[36;1m  sleep 15^[[0m
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:27:57.8746834Z ^[[36;1mdone^[[0m
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:27:57.8748059Z ^[[36;1mecho "Stage 4 did not merge before the safety timeout." >&2^[[0m
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:27:57.8749606Z ^[[36;1mexit 1^[[0m
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:27:57.8793667Z shell: /usr/bin/bash -e {0}
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:27:57.8794746Z env:
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:27:57.8805731Z   GH_TOKEN: ***
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:27:57.8806687Z   REPOSITORY: ImDanielGitHub/folio
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:27:57.8807939Z   PRODUCT_BRANCH: stage/05-run-lifecycle
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:27:57.8809114Z ##[endgroup]
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:27:58.6518704Z Waiting for the verified Stage 4 merge (1/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:28:13.9713763Z Waiting for the verified Stage 4 merge (2/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:28:29.3223738Z Waiting for the verified Stage 4 merge (3/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:28:44.6516202Z Waiting for the verified Stage 4 merge (4/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:28:59.9071954Z Waiting for the verified Stage 4 merge (5/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:29:15.2442642Z Waiting for the verified Stage 4 merge (6/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:29:30.5859760Z Waiting for the verified Stage 4 merge (7/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:29:45.8723611Z Waiting for the verified Stage 4 merge (8/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:30:01.2342024Z Waiting for the verified Stage 4 merge (9/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:30:16.5371013Z Waiting for the verified Stage 4 merge (10/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:30:31.9249029Z Waiting for the verified Stage 4 merge (11/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:30:47.1664517Z Waiting for the verified Stage 4 merge (12/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:31:02.4121053Z Waiting for the verified Stage 4 merge (13/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:31:17.6217323Z Waiting for the verified Stage 4 merge (14/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:31:32.8499168Z Waiting for the verified Stage 4 merge (15/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:31:48.0821174Z Waiting for the verified Stage 4 merge (16/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:32:03.4123395Z Waiting for the verified Stage 4 merge (17/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:32:18.6909389Z Waiting for the verified Stage 4 merge (18/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:32:33.9926385Z Waiting for the verified Stage 4 merge (19/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:32:49.3029655Z Waiting for the verified Stage 4 merge (20/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:33:04.5533629Z Waiting for the verified Stage 4 merge (21/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:33:19.8439449Z Waiting for the verified Stage 4 merge (22/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:33:35.0916799Z Waiting for the verified Stage 4 merge (23/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:33:50.3843702Z Waiting for the verified Stage 4 merge (24/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:34:05.6657830Z Waiting for the verified Stage 4 merge (25/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:34:20.9437316Z Waiting for the verified Stage 4 merge (26/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:34:36.1638708Z Waiting for the verified Stage 4 merge (27/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:34:51.4051251Z Waiting for the verified Stage 4 merge (28/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:35:06.6301457Z Waiting for the verified Stage 4 merge (29/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:35:21.8648246Z Waiting for the verified Stage 4 merge (30/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:35:37.1494004Z Waiting for the verified Stage 4 merge (31/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:35:52.3985718Z Waiting for the verified Stage 4 merge (32/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:36:07.6556541Z Waiting for the verified Stage 4 merge (33/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:36:22.9632863Z Waiting for the verified Stage 4 merge (34/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:36:38.5270238Z Waiting for the verified Stage 4 merge (35/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:36:53.8202416Z Waiting for the verified Stage 4 merge (36/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:37:09.1092737Z Waiting for the verified Stage 4 merge (37/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:37:24.3751737Z Waiting for the verified Stage 4 merge (38/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:37:39.6143526Z Waiting for the verified Stage 4 merge (39/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:37:54.9327415Z Waiting for the verified Stage 4 merge (40/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:38:10.2304476Z Waiting for the verified Stage 4 merge (41/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:38:25.4967599Z Waiting for the verified Stage 4 merge (42/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:38:40.7517205Z Waiting for the verified Stage 4 merge (43/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:38:56.1904063Z Waiting for the verified Stage 4 merge (44/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:39:11.5542196Z Waiting for the verified Stage 4 merge (45/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:39:26.7965875Z Waiting for the verified Stage 4 merge (46/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:39:42.0211402Z Waiting for the verified Stage 4 merge (47/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:39:57.2720918Z Waiting for the verified Stage 4 merge (48/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:40:12.5063869Z Waiting for the verified Stage 4 merge (49/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:40:27.7321114Z Waiting for the verified Stage 4 merge (50/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:40:43.0261176Z Waiting for the verified Stage 4 merge (51/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:40:58.2613428Z Waiting for the verified Stage 4 merge (52/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:41:13.6128789Z Waiting for the verified Stage 4 merge (53/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:41:28.8335858Z Waiting for the verified Stage 4 merge (54/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:41:44.3794567Z Waiting for the verified Stage 4 merge (55/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:41:59.6406775Z Waiting for the verified Stage 4 merge (56/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:42:14.9305306Z Waiting for the verified Stage 4 merge (57/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:42:30.1904664Z Waiting for the verified Stage 4 merge (58/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:42:45.4469455Z Waiting for the verified Stage 4 merge (59/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:43:00.8429983Z Waiting for the verified Stage 4 merge (60/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:43:16.0739276Z Waiting for the verified Stage 4 merge (61/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:43:31.3590697Z Waiting for the verified Stage 4 merge (62/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:43:46.6311176Z Waiting for the verified Stage 4 merge (63/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:44:01.8661370Z Waiting for the verified Stage 4 merge (64/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:44:17.1883208Z Waiting for the verified Stage 4 merge (65/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:44:32.4849453Z Waiting for the verified Stage 4 merge (66/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:44:47.7254012Z Waiting for the verified Stage 4 merge (67/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:45:03.0883847Z Waiting for the verified Stage 4 merge (68/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:45:18.4676588Z Waiting for the verified Stage 4 merge (69/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:45:33.7541754Z Waiting for the verified Stage 4 merge (70/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:45:49.0159771Z Waiting for the verified Stage 4 merge (71/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:46:04.3647647Z Waiting for the verified Stage 4 merge (72/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:46:19.6518379Z Waiting for the verified Stage 4 merge (73/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:46:34.8837794Z Waiting for the verified Stage 4 merge (74/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:46:50.2297900Z Waiting for the verified Stage 4 merge (75/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:47:05.4816027Z Waiting for the verified Stage 4 merge (76/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:47:20.7141248Z Waiting for the verified Stage 4 merge (77/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:47:35.9408536Z Waiting for the verified Stage 4 merge (78/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:47:51.1729517Z Waiting for the verified Stage 4 merge (79/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:48:06.4886247Z Waiting for the verified Stage 4 merge (80/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:48:21.8239135Z Waiting for the verified Stage 4 merge (81/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:48:37.0776044Z Waiting for the verified Stage 4 merge (82/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:48:52.3486860Z Waiting for the verified Stage 4 merge (83/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:49:07.6454086Z Waiting for the verified Stage 4 merge (84/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:49:22.8876279Z Waiting for the verified Stage 4 merge (85/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:49:38.1290609Z Waiting for the verified Stage 4 merge (86/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:49:53.3670502Z Waiting for the verified Stage 4 merge (87/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:50:08.5834160Z Waiting for the verified Stage 4 merge (88/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:50:23.7886374Z Waiting for the verified Stage 4 merge (89/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:50:39.0132009Z Waiting for the verified Stage 4 merge (90/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:50:54.3839930Z Waiting for the verified Stage 4 merge (91/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:51:09.8188316Z Waiting for the verified Stage 4 merge (92/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:51:25.0650098Z Waiting for the verified Stage 4 merge (93/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:51:40.4504484Z Waiting for the verified Stage 4 merge (94/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:51:55.7719615Z Waiting for the verified Stage 4 merge (95/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:52:11.0753362Z Waiting for the verified Stage 4 merge (96/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:52:26.5189914Z Waiting for the verified Stage 4 merge (97/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:52:41.8771669Z Waiting for the verified Stage 4 merge (98/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:52:57.1400159Z Waiting for the verified Stage 4 merge (99/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:53:12.3732453Z Waiting for the verified Stage 4 merge (100/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:53:27.6104000Z Waiting for the verified Stage 4 merge (101/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:53:42.8206039Z Waiting for the verified Stage 4 merge (102/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:53:58.1010380Z Waiting for the verified Stage 4 merge (103/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:54:13.3312207Z Waiting for the verified Stage 4 merge (104/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:54:28.5681815Z Waiting for the verified Stage 4 merge (105/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:54:43.8045383Z Waiting for the verified Stage 4 merge (106/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:54:59.0772655Z Waiting for the verified Stage 4 merge (107/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:55:14.3093480Z Waiting for the verified Stage 4 merge (108/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:55:29.5700040Z Waiting for the verified Stage 4 merge (109/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:55:44.8198680Z Waiting for the verified Stage 4 merge (110/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:56:00.0584853Z Waiting for the verified Stage 4 merge (111/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:56:15.3415516Z Waiting for the verified Stage 4 merge (112/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:56:30.6126663Z Waiting for the verified Stage 4 merge (113/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:56:47.5131220Z Waiting for the verified Stage 4 merge (114/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:57:02.7869582Z Waiting for the verified Stage 4 merge (115/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:57:18.0731035Z Waiting for the verified Stage 4 merge (116/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:57:33.4501345Z Waiting for the verified Stage 4 merge (117/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:57:48.7736839Z Waiting for the verified Stage 4 merge (118/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:58:04.0669697Z Waiting for the verified Stage 4 merge (119/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:58:19.4155976Z Waiting for the verified Stage 4 merge (120/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:58:34.6695561Z Waiting for the verified Stage 4 merge (121/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:58:49.8928356Z Waiting for the verified Stage 4 merge (122/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:59:05.2106559Z Waiting for the verified Stage 4 merge (123/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:59:20.4320138Z Waiting for the verified Stage 4 merge (124/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:59:35.7374603Z Waiting for the verified Stage 4 merge (125/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T04:59:50.9723952Z Waiting for the verified Stage 4 merge (126/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T05:00:06.2574650Z Waiting for the verified Stage 4 merge (127/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T05:00:21.5789540Z Waiting for the verified Stage 4 merge (128/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T05:00:36.8419650Z Waiting for the verified Stage 4 merge (129/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T05:00:52.0734985Z Waiting for the verified Stage 4 merge (130/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T05:01:07.3014832Z Waiting for the verified Stage 4 merge (131/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T05:01:22.5667826Z Waiting for the verified Stage 4 merge (132/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T05:01:37.8611736Z Waiting for the verified Stage 4 merge (133/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T05:01:53.1034794Z Waiting for the verified Stage 4 merge (134/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T05:02:08.3717509Z Waiting for the verified Stage 4 merge (135/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T05:02:23.6482907Z Waiting for the verified Stage 4 merge (136/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T05:02:38.8770947Z Waiting for the verified Stage 4 merge (137/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T05:02:54.3089017Z Waiting for the verified Stage 4 merge (138/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T05:03:09.5708819Z Waiting for the verified Stage 4 merge (139/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T05:03:24.9225647Z Waiting for the verified Stage 4 merge (140/140).
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T05:03:39.9242010Z Stage 4 did not merge before the safety timeout.
+build-review-and-merge	Wait for Stage 4 to be merged	2026-08-27T05:03:39.9260915Z ##[error]Process completed with exit code 1.

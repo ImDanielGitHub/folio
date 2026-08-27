@@ -1,0 +1,224 @@
+{
+  "generatedAt": "2026-08-27T05:10:04Z",
+  "mainSha": "f9d48cbea3640ab371522129d7c6eda5e66d7e18",
+  "stages": [
+    {
+  "stage": 1,
+  "automationBranch": "agent/source-export-20260826",
+  "productBranch": "agent/production-hardening",
+  "productBranchExists": true,
+  "latestAutomationRun": {
+    "conclusion": "success",
+    "createdAt": "2026-08-25T18:32:35Z",
+    "databaseId": 32884359185,
+    "displayTitle": "ci: export current main after audit foundation",
+    "headSha": "8c401239ce5b326d59339e8debfed3e3959c1f7f",
+    "status": "completed",
+    "updatedAt": "2026-08-25T18:32:46Z",
+    "url": "https://github.com/ImDanielGitHub/folio/actions/runs/32884359185"
+  },
+  "pullRequests": [
+    {
+      "baseRefName": "main",
+      "createdAt": "2026-08-06T02:06:51Z",
+      "headRefName": "agent/production-hardening",
+      "headRefOid": "07583c9c898870258b400c87bce460913ab9dc83",
+      "isDraft": true,
+      "mergedAt": null,
+      "number": 1,
+      "state": "CLOSED",
+      "title": "Harden Folio's local API and verification pipeline",
+      "updatedAt": "2026-08-25T18:11:53Z",
+      "url": "https://github.com/ImDanielGitHub/folio/pull/1"
+    }
+  ]
+},
+    {
+  "stage": 2,
+  "automationBranch": "automation/stage-2-finance-correctness",
+  "productBranch": "stage/02-finance-correctness",
+  "productBranchExists": false,
+  "latestAutomationRun": {
+    "conclusion": "failure",
+    "createdAt": "2026-08-27T04:15:16Z",
+    "databaseId": 33038847254,
+    "displayTitle": "ci: run staged finance correctness delivery",
+    "headSha": "97f862a2cc1a50ffa6a6a6b476c594f59d22d366",
+    "status": "completed",
+    "updatedAt": "2026-08-27T04:15:24Z",
+    "url": "https://github.com/ImDanielGitHub/folio/actions/runs/33038847254"
+  },
+  "pullRequests": []
+},
+    {
+  "stage": 3,
+  "automationBranch": "automation/stage-3-local-security",
+  "productBranch": "stage/03-local-security",
+  "productBranchExists": false,
+  "latestAutomationRun": {
+    "conclusion": "failure",
+    "createdAt": "2026-08-27T04:19:40Z",
+    "databaseId": 33039072052,
+    "displayTitle": "ci: run staged local-security delivery",
+    "headSha": "50ec84e5b5abd9cdf65a4736bdd3248cb79ec5cc",
+    "status": "completed",
+    "updatedAt": "2026-08-27T04:45:24Z",
+    "url": "https://github.com/ImDanielGitHub/folio/actions/runs/33039072052"
+  },
+  "pullRequests": []
+},
+    {
+  "stage": 4,
+  "automationBranch": "automation/stage-4-data-durability",
+  "productBranch": "stage/04-data-durability",
+  "productBranchExists": false,
+  "latestAutomationRun": {
+    "conclusion": "failure",
+    "createdAt": "2026-08-27T04:23:47Z",
+    "databaseId": 33039281105,
+    "displayTitle": "ci: run staged data-durability delivery",
+    "headSha": "ab269ec0edc51423edd4190c20422c5ceff9124e",
+    "status": "completed",
+    "updatedAt": "2026-08-27T04:54:32Z",
+    "url": "https://github.com/ImDanielGitHub/folio/actions/runs/33039281105"
+  },
+  "pullRequests": []
+},
+    {
+  "stage": 5,
+  "automationBranch": "automation/stage-5-run-lifecycle",
+  "productBranch": "stage/05-run-lifecycle",
+  "productBranchExists": false,
+  "latestAutomationRun": {
+    "conclusion": "failure",
+    "createdAt": "2026-08-27T04:27:53Z",
+    "databaseId": 33039488184,
+    "displayTitle": "ci: run staged lifecycle delivery",
+    "headSha": "7ce0c4bfc3e66b931e990333aaed973676015878",
+    "status": "completed",
+    "updatedAt": "2026-08-27T05:03:41Z",
+    "url": "https://github.com/ImDanielGitHub/folio/actions/runs/33039488184"
+  },
+  "pullRequests": []
+},
+    {
+  "stage": 6,
+  "automationBranch": "automation/stage-6-runtime-contracts",
+  "productBranch": "stage/06-runtime-contracts",
+  "productBranchExists": false,
+  "latestAutomationRun": {
+    "conclusion": "",
+    "createdAt": "2026-08-27T04:34:40Z",
+    "databaseId": 33039829832,
+    "displayTitle": "ci: run staged runtime-contract delivery",
+    "headSha": "75a60bdfba322691ab0e46f679f06e3154340adb",
+    "status": "in_progress",
+    "updatedAt": "2026-08-27T04:34:43Z",
+    "url": "https://github.com/ImDanielGitHub/folio/actions/runs/33039829832"
+  },
+  "pullRequests": []
+},
+    {
+  "stage": 7,
+  "automationBranch": "automation/stage-7-scheduler-outbox",
+  "productBranch": "stage/07-scheduler-outbox",
+  "productBranchExists": false,
+  "latestAutomationRun": {
+    "conclusion": "",
+    "createdAt": "2026-08-27T04:40:53Z",
+    "databaseId": 33040141112,
+    "displayTitle": "ci: run staged scheduler and outbox delivery",
+    "headSha": "63ba85ba865a98ce95fc430429b777468d516689",
+    "status": "in_progress",
+    "updatedAt": "2026-08-27T04:40:56Z",
+    "url": "https://github.com/ImDanielGitHub/folio/actions/runs/33040141112"
+  },
+  "pullRequests": []
+},
+    {
+  "stage": 8,
+  "automationBranch": "automation/stage-8-accounting-handoff",
+  "productBranch": "stage/08-accounting-handoff",
+  "productBranchExists": false,
+  "latestAutomationRun": {
+    "conclusion": "",
+    "createdAt": "2026-08-27T04:45:37Z",
+    "databaseId": 33040381782,
+    "displayTitle": "ci: run staged accounting-handoff delivery",
+    "headSha": "b8d2288a14b53dc1eefad6106d8948ec7c5d1219",
+    "status": "in_progress",
+    "updatedAt": "2026-08-27T04:45:41Z",
+    "url": "https://github.com/ImDanielGitHub/folio/actions/runs/33040381782"
+  },
+  "pullRequests": []
+},
+    {
+  "stage": 9,
+  "automationBranch": "automation/stage-9-data-control",
+  "productBranch": "stage/09-owner-data-control",
+  "productBranchExists": false,
+  "latestAutomationRun": {
+    "conclusion": "",
+    "createdAt": "2026-08-27T04:51:15Z",
+    "databaseId": 33040667332,
+    "displayTitle": "ci: run staged owner data-control delivery",
+    "headSha": "e561cdddd7818652a205863b172ac4c121274073",
+    "status": "in_progress",
+    "updatedAt": "2026-08-27T04:51:20Z",
+    "url": "https://github.com/ImDanielGitHub/folio/actions/runs/33040667332"
+  },
+  "pullRequests": []
+},
+    {
+  "stage": 10,
+  "automationBranch": "automation/stage-10-telegram-live",
+  "productBranch": "stage/10-telegram-live",
+  "productBranchExists": false,
+  "latestAutomationRun": {
+    "conclusion": "",
+    "createdAt": "2026-08-27T04:56:16Z",
+    "databaseId": 33040924259,
+    "displayTitle": "ci: run staged Telegram live-ingestion delivery",
+    "headSha": "cf8664648e06cf133be58ecbb8d75839c585be39",
+    "status": "in_progress",
+    "updatedAt": "2026-08-27T04:56:19Z",
+    "url": "https://github.com/ImDanielGitHub/folio/actions/runs/33040924259"
+  },
+  "pullRequests": []
+},
+    {
+  "stage": 11,
+  "automationBranch": "automation/stage-11-model-measurement",
+  "productBranch": "stage/11-model-measurement",
+  "productBranchExists": false,
+  "latestAutomationRun": {
+    "conclusion": "",
+    "createdAt": "2026-08-27T05:00:31Z",
+    "databaseId": 33041140796,
+    "displayTitle": "ci: run staged measured-model delivery",
+    "headSha": "f85e154c2e82d0a8ef2a9e67b4fb65f85d86ffbe",
+    "status": "in_progress",
+    "updatedAt": "2026-08-27T05:00:34Z",
+    "url": "https://github.com/ImDanielGitHub/folio/actions/runs/33041140796"
+  },
+  "pullRequests": []
+},
+    {
+  "stage": 12,
+  "automationBranch": "automation/stage-12-release-engineering",
+  "productBranch": "stage/12-release-engineering",
+  "productBranchExists": false,
+  "latestAutomationRun": {
+    "conclusion": "",
+    "createdAt": "2026-08-27T05:08:07Z",
+    "databaseId": 33041541694,
+    "displayTitle": "ci: run staged packaged-release delivery",
+    "headSha": "ec77bf603ba8eea6a0989ab712434a4b367dc3de",
+    "status": "in_progress",
+    "updatedAt": "2026-08-27T05:08:10Z",
+    "url": "https://github.com/ImDanielGitHub/folio/actions/runs/33041541694"
+  },
+  "pullRequests": []
+}
+  ]
+}

@@ -1,0 +1,23 @@
+build-review-and-merge	Wait for Stage 1 to be merged	﻿2026-08-27T04:15:21.9515515Z ##[group]Run for attempt in $(seq 1 80); do
+build-review-and-merge	Wait for Stage 1 to be merged	2026-08-27T04:15:21.9517770Z ^[[36;1mfor attempt in $(seq 1 80); do^[[0m
+build-review-and-merge	Wait for Stage 1 to be merged	2026-08-27T04:15:21.9520886Z ^[[36;1m  state=$(gh pr view 1 --repo "$REPOSITORY" --json state --jq .state 2>/dev/null || true)^[[0m
+build-review-and-merge	Wait for Stage 1 to be merged	2026-08-27T04:15:21.9523675Z ^[[36;1m  if [ "$state" = "MERGED" ]; then^[[0m
+build-review-and-merge	Wait for Stage 1 to be merged	2026-08-27T04:15:21.9525006Z ^[[36;1m    exit 0^[[0m
+build-review-and-merge	Wait for Stage 1 to be merged	2026-08-27T04:15:21.9526018Z ^[[36;1m  fi^[[0m
+build-review-and-merge	Wait for Stage 1 to be merged	2026-08-27T04:15:21.9527050Z ^[[36;1m  if [ "$state" = "CLOSED" ]; then^[[0m
+build-review-and-merge	Wait for Stage 1 to be merged	2026-08-27T04:15:21.9528591Z ^[[36;1m    echo "Stage 1 was closed without merging." >&2^[[0m
+build-review-and-merge	Wait for Stage 1 to be merged	2026-08-27T04:15:21.9530071Z ^[[36;1m    exit 1^[[0m
+build-review-and-merge	Wait for Stage 1 to be merged	2026-08-27T04:15:21.9531339Z ^[[36;1m  fi^[[0m
+build-review-and-merge	Wait for Stage 1 to be merged	2026-08-27T04:15:21.9532704Z ^[[36;1m  echo "Stage 1 is ${state:-not readable}; waiting (${attempt}/80)."^[[0m
+build-review-and-merge	Wait for Stage 1 to be merged	2026-08-27T04:15:21.9534422Z ^[[36;1m  sleep 15^[[0m
+build-review-and-merge	Wait for Stage 1 to be merged	2026-08-27T04:15:21.9535442Z ^[[36;1mdone^[[0m
+build-review-and-merge	Wait for Stage 1 to be merged	2026-08-27T04:15:21.9536750Z ^[[36;1mecho "Stage 1 did not merge before the safety timeout." >&2^[[0m
+build-review-and-merge	Wait for Stage 1 to be merged	2026-08-27T04:15:21.9538991Z ^[[36;1mexit 1^[[0m
+build-review-and-merge	Wait for Stage 1 to be merged	2026-08-27T04:15:21.9586101Z shell: /usr/bin/bash -e {0}
+build-review-and-merge	Wait for Stage 1 to be merged	2026-08-27T04:15:21.9587286Z env:
+build-review-and-merge	Wait for Stage 1 to be merged	2026-08-27T04:15:21.9597465Z   GH_TOKEN: ***
+build-review-and-merge	Wait for Stage 1 to be merged	2026-08-27T04:15:21.9598535Z   REPOSITORY: ImDanielGitHub/folio
+build-review-and-merge	Wait for Stage 1 to be merged	2026-08-27T04:15:21.9599916Z   PRODUCT_BRANCH: stage/02-finance-correctness
+build-review-and-merge	Wait for Stage 1 to be merged	2026-08-27T04:15:21.9601463Z ##[endgroup]
+build-review-and-merge	Wait for Stage 1 to be merged	2026-08-27T04:15:22.2977081Z Stage 1 was closed without merging.
+build-review-and-merge	Wait for Stage 1 to be merged	2026-08-27T04:15:22.2993262Z ##[error]Process completed with exit code 1.
