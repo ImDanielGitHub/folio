@@ -143,6 +143,17 @@ async def test_all_frozen_routes_are_exposed_and_fixture_calls_run(app: FastAPI)
         )
         assert diagnostics.status_code == 200
         assert diagnostics.json()["privacy"]["rawTurnsIncluded"] is False
+        turn = await client.post(
+            "/v1/threads/thr_koru_studio_main/turns",
+            json={
+                "workspaceId": "ws_koru_studio",
+                "turnId": "turn_route_status_test",
+                "content": "Show the current picture.",
+                "mode": "local",
+            },
+        )
+        assert turn.status_code == 200
+        assert turn.json()["runId"] == "run_koru_owner_turn_fixture"
 
 
 @pytest.mark.asyncio

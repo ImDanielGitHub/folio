@@ -212,7 +212,12 @@ async def test_unconfigured_sync_fails_closed_before_network(tmp_path: Path) -> 
         ) as route_client:
             response = await route_client.post("/v1/connectors/plaid/sync", json={})
         assert response.status_code == 409
-        assert "disabled or unconfigured" in response.json()["detail"]
+        assert response.json()["detail"] == {
+            "code": "connector_unconfigured",
+            "message": "Plaid is disabled or unconfigured",
+            "retryable": False,
+            "provider": "plaid",
+        }
         assert call_count == 0
     finally:
         await services.aclose()

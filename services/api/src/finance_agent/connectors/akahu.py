@@ -17,7 +17,11 @@ from urllib.parse import urlparse
 
 import httpx
 
-from finance_agent.connectors.base import ConnectorError
+from finance_agent.connectors.base import (
+    ConnectorError,
+    connector_unconfigured,
+    provider_http_error,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -267,7 +271,7 @@ class AkahuReadOnlyAdapter:
         self, path: str, *, params: Mapping[str, str] | None = None
     ) -> Mapping[str, object]:
         if not (self.config.enabled and self.config.app_token and self.config.user_token):
-            raise ConnectorError("Akahu is disabled or unconfigured")
+            raise connector_unconfigured("Akahu")
         try:
             response = await self._client.get(
                 f"{self.config.base_url.rstrip('/')}/{path.lstrip('/')}",
@@ -275,18 +279,47 @@ class AkahuReadOnlyAdapter:
                 headers=self._headers,
             )
             response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise provider_http_error("Akahu", exc.response.status_code) from exc
+        except httpx.RequestError as exc:
+            raise ConnectorError(
+                "Akahu is temporarily unavailable",
+                code="provider_unavailable",
+                retryable=True,
+                status_code=503,
+                provider="akahu",
+            ) from exc
+        try:
             payload = response.json()
-        except (httpx.HTTPError, ValueError) as exc:
-            raise ConnectorError("Akahu read request failed") from exc
+        except ValueError as exc:
+            raise ConnectorError(
+                "Akahu returned invalid JSON",
+                code="provider_invalid_response",
+                provider="akahu",
+            ) from exc
         if not isinstance(payload, Mapping) or payload.get("success") is False:
-            raise ConnectorError("Akahu returned an invalid read response")
+            raise ConnectorError(
+                "Akahu returned an invalid read response",
+                code="provider_invalid_response",
+                provider="akahu",
+            )
         return payload
 
     @staticmethod
     def _page(payload: Mapping[str, object]) -> ProviderPage:
         raw_items = payload.get("items")
         if not isinstance(raw_items, list):
-            raise ConnectorError("Akahu response did not contain an item list")
+            raise ConnectorError(
+                "Akahu response did not contain an item list",
+                code="provider_invalid_response",
+                provider="akahu",
+            )
+        if any(not isinstance(item, Mapping) for item in raw_items):
+            raise ConnectorError(
+                "Akahu response contained a non-object item",
+                code="provider_invalid_response",
+                provider="akahu",
+            )
         items = tuple(item for item in raw_items if isinstance(item, Mapping))
         raw_cursor = payload.get("cursor")
         next_cursor = raw_cursor.get("next") if isinstance(raw_cursor, Mapping) else None

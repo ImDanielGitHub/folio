@@ -124,7 +124,7 @@ async def test_real_golden_api_flow_is_local_exact_and_reversible(tmp_path: Path
                 "mode": "local",
             },
         )
-        assert scenario.status_code == 202
+        assert scenario.status_code == 200
         assert scenario.json()["status"] == "completed"
         scenario_snapshot = (
             await client.get("/v1/workspaces/ws_koru_studio/snapshot")
@@ -143,7 +143,7 @@ async def test_real_golden_api_flow_is_local_exact_and_reversible(tmp_path: Path
                 "mode": "local",
             },
         )
-        assert correction.status_code == 202
+        assert correction.status_code == 200
         corrected = (
             await client.get("/v1/workspaces/ws_koru_studio/snapshot")
         ).json()
@@ -177,7 +177,7 @@ async def test_real_golden_api_flow_is_local_exact_and_reversible(tmp_path: Path
                 "mode": "hybrid",
             },
         )
-        assert pack.status_code == 202
+        assert pack.status_code == 200
         pack_snapshot = (
             await client.get("/v1/workspaces/ws_koru_studio/snapshot")
         ).json()
@@ -207,7 +207,7 @@ async def test_real_golden_api_flow_is_local_exact_and_reversible(tmp_path: Path
                 "mode": "cloud",
             },
         )
-        assert cloud_switch.status_code == 202
+        assert cloud_switch.status_code == 200
         capabilities = (await client.get("/v1/models/capabilities")).json()
         assert capabilities["cloudCredentialState"] == "absent"
         assert capabilities["externalCallsMade"] is False

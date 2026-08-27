@@ -207,7 +207,12 @@ async def test_unconfigured_sync_fails_closed_before_network(tmp_path: Path) -> 
                 json={"start": "2026-07-01", "end": "2026-07-21"},
             )
         assert response.status_code == 409
-        assert response.json()["detail"] == "Akahu is disabled or unconfigured"
+        assert response.json()["detail"] == {
+            "code": "connector_unconfigured",
+            "message": "Akahu is disabled or unconfigured",
+            "retryable": False,
+            "provider": "akahu",
+        }
         assert call_count == 0
     finally:
         await services.aclose()

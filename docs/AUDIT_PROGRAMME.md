@@ -1,23 +1,23 @@
 # Folio audit implementation programme
 
-This branch implements the first mergeable programme slice from the 200-item repository audit. It deliberately does not pretend that one pull request can complete external accreditation, legal review, live-bank acceptance, multi-business identity, signed distribution and full accounting integrations.
+The repository audit contains 100 research-backed product and engineering improvements and 100 concrete fixes or build-outs. Folio ships them as dependency-ordered pull requests so every merge has its own proof boundary. A later stack may depend on an earlier merge, but no PR is described as complete until its own CI and review evidence is green.
 
-## Implemented in this pull request
+## Ordered stack
 
-- cross-platform root commands and a complete CI verification gate
-- bounded HTTP and CSV bodies, safe artifact headers, identifier validation and conservative response headers
-- optional per-launch loopback session authentication
-- exact Electron renderer-origin and IPC sender checks, default-deny permissions and a secure `app://` production origin
-- bounded native CSV reads
-- material Daily Close identity across every committed source, active rule and reserve policy
-- real job timestamps and result counts rather than fixed demo claims
-- per-turn model-mode provenance
-- cross-workspace guards for claim supersession and dialogue-frame updates
-- a provider-event quarantine for non-NZD Plaid records so USD cents cannot become NZD ledger cents
-- regression tests for the new trust boundaries
+1. **Correctness and security foundation — merged in PR #2.** Request and CSV bounds, safe artifact headers, session authentication, Electron origin and IPC controls, secure production protocol, cross-platform verification, foreign-currency Plaid quarantine, material-source Daily Close identity, real timestamps/counts, per-turn model provenance, and initial workspace-ownership guards.
+2. **Provider and run semantics — this pull request.** Audit items B003, B006–B012, B014, B017, B018, B040, B078, and B079: owner claims/policy/date in the Daily Close state vector, complete Plaid added/modified/removed history, cursor-loop rejection, strict provider payload validation, resolved database paths, truthful environment configuration, synchronous turn status, mutation-origin checks, production route gating, typed provider failures, and regression coverage.
+3. **Cancellation, concurrency, and client protocol.** B013, B015, B031–B045, and B053–B057: persisted cancellation, narrower locks, complete runtime validators, structured client errors, incremental/resumable SSE, request IDs, health/readiness, and authoritative idempotency/mode state.
+4. **Model, egress, and evaluation evidence.** B029 and B046–B060: projection privacy scanning, measured capability cards, bounded retries, provider usage metadata, repair accounting, failed-run receipts, egress hashes, and adversarial evaluation sets.
+5. **Storage durability and workspace isolation.** B030 and B091–B099: encryption/key lifecycle, smaller service boundaries, migration checksums, backup/integrity/restore, complete multi-workspace ownership, indexes, retention, export, and legal-hold behaviour.
+6. **Desktop resilience, accessibility, and interaction tests.** B062, B065–B077, B080–B084: user-data storage, window/session recovery, real progress and reconciliation, URL/local-storage validation, WCAG runtime checks, accessible documents, React and Electron end-to-end tests, property tests, coverage gates, and contract mutation tests.
+7. **Supply-chain and release engineering.** B085, B086, B089, B090, and B100: dependency review, Dependabot/CodeQL/SBOM, packaged sidecar lifecycle, signing/notarisation configuration, verified updates, safe environment loading, PID ownership checks, and generated proof receipts.
+8. **Owner finance workflow.** I001–I025: attention brief, evidence ladder, classification/duplicate centres, recurring and receivable intelligence, scenarios/reserves, GST/tax preparation, reconciliation, period close, and multi-business foundations.
+9. **Documents, accounting bridges, and communication.** I026–I045 and I093–I100: document ingestion/quarantine, accountant exports, Xero/MYOB/Peppol seams, authenticated messaging, encrypted backups, privacy controls, release evidence, and longitudinal research evaluation.
+10. **Forecasting, explanations, local-model resilience, and product polish.** I046–I092: uncertainty-aware forecasts, anomaly and merchant intelligence, source-level explanations, model evaluation/degradation, undo/redo history, accessibility, performance, and packaging quality.
 
-## Explicitly remaining
+## Proof rules
 
-The remaining audit programme includes encrypted-at-rest workspace storage, key recovery, multi-business identities and roles, signed installers and notarisation, auto-update, real Akahu OAuth/accreditation, Xero/MYOB integrations, GST-period and lock-date workflows, authenticated Telegram/WhatsApp ingestion, durable scheduling and notifications, document extraction and quarantine, full renderer interaction tests, accessibility runtime testing, performance budgets, privacy/legal review and real-provider acceptance evidence.
-
-Those are separate proof boundaries and should be delivered as reviewable follow-up pull requests rather than hidden behind a single untestable mega-merge.
+- Finance amounts, classification effects, forecasts, evidence, and generated records remain deterministic.
+- Provider changes are append-only. Modifications supersede prior events and removals are tombstones; source history is not rewritten.
+- A green unit test does not prove a packaged runtime, signed release, real provider, or external delivery.
+- Work requiring credentials, accreditation, legal judgement, signing identities, or live-provider acceptance is implemented up to the code/configuration boundary and remains explicitly unverified until that external evidence exists.

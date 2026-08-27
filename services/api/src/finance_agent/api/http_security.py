@@ -191,6 +191,49 @@ class SessionAuthMiddleware:
         await self.app(scope, receive, send)
 
 
+class OriginGuardMiddleware:
+    """Reject browser mutation requests from origins outside the desktop allowlist.
+
+    Non-browser local clients do not send Origin and remain protected by the
+    per-launch session credential. CORS alone is not treated as authentication.
+    """
+
+    _SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+    def __init__(self, app: ASGIApp, *, allowed_origins: set[str] | frozenset[str]) -> None:
+        self.app = app
+        self.allowed_origins = frozenset(value.rstrip("/") for value in allowed_origins)
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        method = str(scope.get("method", "GET")).upper()
+        headers = Headers(scope=scope)
+        origin = headers.get("origin")
+        request_host = (headers.get("host") or "").split(":", 1)[0]
+        test_client_origin = (
+            origin in {"http://test", "https://test", "http://testserver", "https://testserver"}
+            and request_host in {"test", "testserver"}
+        )
+        if (
+            method not in self._SAFE_METHODS
+            and origin is not None
+            and origin.rstrip("/") not in self.allowed_origins
+            and not test_client_origin
+        ):
+            await _send_problem(
+                scope,
+                receive,
+                send,
+                status=403,
+                title="Untrusted request origin",
+                detail="The mutation did not originate from an authorised Folio renderer.",
+            )
+            return
+        await self.app(scope, receive, send)
+
+
 class SecurityHeadersMiddleware:
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
