@@ -1,0 +1,58 @@
+name: Stage 3b Source Export
+
+on:
+  push:
+    branches:
+      - agent/stage3b-source-export-20260827
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact current main
+        uses: actions/checkout@v4
+        with:
+          ref: f9d48cb95e4b7c8cd8e8c869b8a6d36baa2ccbb3
+          fetch-depth: 1
+
+      - name: Archive current main
+        run: |
+          tar \
+            --exclude=.git \
+            --exclude=node_modules \
+            --exclude=services/api/.venv \
+            -czf /tmp/folio-main-stage3b.tar.gz .
+
+      - name: Check out Stage 3b staging branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/run-cancellation-20260826
+          path: stage3b-staging
+          fetch-depth: 1
+
+      - name: Archive Stage 3b staging inputs
+        run: |
+          tar \
+            --exclude=.git \
+            -czf /tmp/folio-stage3b-staging.tar.gz \
+            -C stage3b-staging .
+
+      - name: Upload current main
+        uses: actions/upload-artifact@v4
+        with:
+          name: folio-main-stage3b
+          path: /tmp/folio-main-stage3b.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload Stage 3b staging inputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: folio-stage3b-staging
+          path: /tmp/folio-stage3b-staging.tar.gz
+          if-no-files-found: error
+          retention-days: 1
