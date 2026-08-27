@@ -1,0 +1,208 @@
+name: Stage 9 owner data control
+
+on:
+  push:
+    branches:
+      - automation/stage-9-data-control
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  actions: read
+
+jobs:
+  build-review-and-merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 80
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ImDanielGitHub/folio
+      PRODUCT_BRANCH: stage/09-owner-data-control
+
+    steps:
+      - name: Check out stage automation
+        uses: actions/checkout@v4
+        with:
+          path: automation
+          fetch-depth: 1
+
+      - name: Wait for Stage 8 to be merged
+        run: |
+          for attempt in $(seq 1 220); do
+            count=$(gh pr list --repo "$REPOSITORY" --state merged \
+              --search "head:stage/08-accounting-handoff" \
+              --json number --jq 'length' 2>/dev/null || echo 0)
+            if [ "$count" -gt 0 ]; then exit 0; fi
+            echo "Waiting for the verified Stage 8 merge (${attempt}/220)."
+            sleep 15
+          done
+          echo "Stage 8 did not merge before the safety timeout." >&2
+          exit 1
+
+      - name: Check out the merged product base
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: repo
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Create an isolated product branch
+        working-directory: repo
+        run: |
+          if git ls-remote --exit-code --heads origin "$PRODUCT_BRANCH" >/dev/null 2>&1; then
+            echo "${PRODUCT_BRANCH} already exists; refusing an implicit overwrite." >&2
+            exit 1
+          fi
+          git switch -c "$PRODUCT_BRANCH"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: repo/pnpm-lock.yaml
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Install locked dependencies
+        working-directory: repo
+        run: |
+          pnpm install --frozen-lockfile
+          uv sync --project services/api --frozen
+
+      - name: Materialise Stage 9 tests and implementation
+        working-directory: repo
+        run: |
+          python ../automation/automation/stage9_impl.py
+          python ../automation/automation/stage9_post.py
+
+      - name: Preserve only data-control tests for the red check
+        working-directory: repo
+        run: |
+          rm -rf /tmp/stage9-tests
+          mkdir -p /tmp/stage9-tests
+          cp -a services/api/tests/. /tmp/stage9-tests/
+          git reset --hard HEAD
+          git clean -fd
+          rm -rf services/api/tests
+          mkdir -p services/api/tests
+          cp -a /tmp/stage9-tests/. services/api/tests/
+
+      - name: Verify Stage 9 regression tests fail before implementation
+        working-directory: repo
+        run: |
+          set +e
+          uv run --project services/api pytest -q services/api/tests/privacy/test_data_control.py
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "Stage 9 data-control tests unexpectedly passed on the unmodified product." >&2
+            exit 1
+          fi
+          echo "RED confirmed for exports, retention and destructive-action gates."
+
+      - name: Restore the clean product and apply Stage 9
+        working-directory: repo
+        run: |
+          git reset --hard HEAD
+          git clean -fd
+          python ../automation/automation/stage9_impl.py
+          python ../automation/automation/stage9_post.py
+          pnpm lint:fix
+
+      - name: Verify targeted Stage 9 behaviour
+        working-directory: repo
+        run: uv run --project services/api pytest -q services/api/tests/privacy/test_data_control.py
+
+      - name: Run the complete repository verification gate
+        working-directory: repo
+        env:
+          LM_STUDIO_BASE_URL: http://127.0.0.1:65530/v1
+          OPENAI_API_KEY: ""
+          FOLIO_SESSION_TOKEN: stage9-ci-session
+          VITE_FOLIO_SESSION_TOKEN: stage9-ci-session
+        run: pnpm verify
+
+      - name: Commit and push the verified stage
+        id: commit
+        working-directory: repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs apps/desktop/src/main services/api/src services/api/tests
+          git diff --cached --check
+          git commit -m "feat: add owner-controlled local data lifecycle"
+          git push --set-upstream origin "$PRODUCT_BRANCH"
+          echo "head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Open the Stage 9 pull request
+        id: pr
+        working-directory: repo
+        run: |
+          cat > /tmp/stage9-body.md <<'EOF'
+          ## Stage 9 of the Folio audit programme
+
+          This stage gives the owner explicit control over the local data and generated copies.
+
+          ### Changes
+
+          - report a bounded workspace data inventory without returning credentials
+          - create a portable ZIP containing a verified SQLite backup, manifest and prepared artefacts
+          - exclude process environment, provider tokens and session secrets from exports
+          - content-hash archive files and verify them before delivery
+          - retain explicit policies for generated export copies only
+          - prune generated exports without silently expiring source evidence or owner statements
+          - require short-lived one-time challenges for reset and clear actions
+          - create a recovery archive and external receipt before changing the live database
+          - refuse the ordinary demo reset after owner-imported data exists
+          - leave a cleared service in an explicit onboarding-required health state
+
+          ### Evidence
+
+          The workflow records a red data-control suite on the merged Stage 8 base, then executes targeted privacy tests and the complete repository gate. Merge remains conditional on PR checks.
+
+          ### Audit coverage
+
+          Primary items: data inventory I117-I123, portability I124-I133, retention I134-I141, destructive controls B256-B269 and privacy recovery B270-B280.
+          EOF
+          url=$(gh pr create \
+            --repo "$REPOSITORY" \
+            --base main \
+            --head "$PRODUCT_BRANCH" \
+            --title "Stage 9: add owner-controlled workspace export and data lifecycle" \
+            --body-file /tmp/stage9-body.md)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for Stage 9 pull-request checks
+        run: |
+          sleep 12
+          for attempt in $(seq 1 36); do
+            if gh pr checks "${{ steps.pr.outputs.url }}" --watch --fail-fast; then exit 0; fi
+            echo "Stage 9 checks are not ready or not green (${attempt}/36)."
+            sleep 10
+          done
+          exit 1
+
+      - name: Merge verified Stage 9
+        run: |
+          gh pr merge "${{ steps.pr.outputs.url }}" \
+            --squash \
+            --delete-branch \
+            --match-head-commit "${{ steps.commit.outputs.head_sha }}"
