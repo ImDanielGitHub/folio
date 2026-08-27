@@ -1,0 +1,214 @@
+name: Stage 3 local security
+
+on:
+  push:
+    branches:
+      - automation/stage-3-local-security
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  actions: read
+
+jobs:
+  build-review-and-merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ImDanielGitHub/folio
+      PRODUCT_BRANCH: stage/03-local-security
+
+    steps:
+      - name: Check out stage automation
+        uses: actions/checkout@v4
+        with:
+          path: automation
+          fetch-depth: 1
+
+      - name: Wait for Stage 2 to be merged
+        run: |
+          for attempt in $(seq 1 100); do
+            count=$(gh pr list --repo "$REPOSITORY" --state merged \
+              --search "head:stage/02-finance-correctness" \
+              --json number --jq 'length' 2>/dev/null || echo 0)
+            if [ "$count" -gt 0 ]; then
+              exit 0
+            fi
+            echo "Waiting for the verified Stage 2 merge (${attempt}/100)."
+            sleep 15
+          done
+          echo "Stage 2 did not merge before the safety timeout." >&2
+          exit 1
+
+      - name: Check out the merged product base
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: repo
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Create an isolated product branch
+        working-directory: repo
+        run: |
+          if git ls-remote --exit-code --heads origin "$PRODUCT_BRANCH" >/dev/null 2>&1; then
+            echo "${PRODUCT_BRANCH} already exists; refusing an implicit overwrite." >&2
+            exit 1
+          fi
+          git switch -c "$PRODUCT_BRANCH"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: repo/pnpm-lock.yaml
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Install locked dependencies
+        working-directory: repo
+        run: |
+          pnpm install --frozen-lockfile
+          uv sync --project services/api --frozen
+
+      - name: Materialise Stage 3 tests and implementation
+        working-directory: repo
+        run: python ../automation/automation/stage3_impl.py
+
+      - name: Preserve only the security tests for the red check
+        working-directory: repo
+        run: |
+          rm -rf /tmp/stage3-api-tests /tmp/stage3-electron-test
+          mkdir -p /tmp/stage3-api-tests /tmp/stage3-electron-test
+          cp -a services/api/tests/. /tmp/stage3-api-tests/
+          cp apps/desktop/src/main/security.test.ts /tmp/stage3-electron-test/security.test.ts
+          git reset --hard HEAD
+          git clean -fd
+          rm -rf services/api/tests
+          mkdir -p services/api/tests apps/desktop/src/main
+          cp -a /tmp/stage3-api-tests/. services/api/tests/
+          cp /tmp/stage3-electron-test/security.test.ts apps/desktop/src/main/security.test.ts
+
+      - name: Verify Stage 3 regression tests fail before implementation
+        working-directory: repo
+        run: |
+          set +e
+          uv run --project services/api pytest -q services/api/tests/api/test_session_auth.py
+          api_status=$?
+          pnpm --filter @folio/desktop typecheck
+          desktop_status=$?
+          set -e
+          if [ "$api_status" -eq 0 ] || [ "$desktop_status" -eq 0 ]; then
+            echo "A Stage 3 regression check unexpectedly passed on the unmodified product." >&2
+            exit 1
+          fi
+          echo "RED confirmed for API session authentication and Electron origin security."
+
+      - name: Restore the clean product and apply Stage 3
+        working-directory: repo
+        run: |
+          git reset --hard HEAD
+          git clean -fd
+          python ../automation/automation/stage3_impl.py
+          pnpm lint:fix
+
+      - name: Verify targeted Stage 3 behaviour
+        working-directory: repo
+        run: |
+          uv run --project services/api pytest -q services/api/tests/api/test_session_auth.py
+          pnpm --filter @folio/desktop test
+
+      - name: Run the complete repository verification gate
+        working-directory: repo
+        env:
+          LM_STUDIO_BASE_URL: http://127.0.0.1:65530/v1
+          OPENAI_API_KEY: ""
+        run: pnpm verify
+
+      - name: Commit and push the verified stage
+        id: commit
+        working-directory: repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .env.example run package.json apps/desktop services/api/src services/api/tests
+          git diff --cached --check
+          git commit -m "security: authenticate and isolate the local desktop boundary"
+          git push --set-upstream origin "$PRODUCT_BRANCH"
+          echo "head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Open the Stage 3 pull request
+        id: pr
+        working-directory: repo
+        run: |
+          cat > /tmp/stage3-body.md <<'EOF'
+          ## Stage 3 of the Folio audit programme
+
+          This stage hardens the local desktop-to-API trust boundary after finance correctness is established.
+
+          ### Changes
+
+          - add optional per-launch authentication to all `/v1` loopback routes
+          - propagate the session through the launcher, Electron preload and browser transport
+          - reject duplicate or incorrect session headers without leaking credentials
+          - serve production renderer files from a privileged `folio://app` origin
+          - compare exact renderer origins instead of vulnerable string prefixes
+          - validate IPC senders and artifact identifiers
+          - deny runtime permission requests and webview attachment
+          - fetch authenticated artifacts in the main process and open bounded local files
+          - limit native CSV selection to non-empty files no larger than 10 MB
+          - add a restrictive Content Security Policy
+          - add executable API and Electron security regression tests to `pnpm verify`
+
+          ### Evidence
+
+          The workflow records a red check against the Stage 2 base, then runs both targeted security suites and the full verification gate before opening this PR. Merge is conditional on the PR checks.
+
+          ### Audit coverage
+
+          Primary items: local API security B041-B052, Electron hardening B061-B073, secret handling B081-B087, desktop verification B151-B158.
+          EOF
+          url=$(gh pr create \
+            --repo "$REPOSITORY" \
+            --base main \
+            --head "$PRODUCT_BRANCH" \
+            --title "Stage 3: authenticate and isolate Folio's local boundary" \
+            --body-file /tmp/stage3-body.md)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for Stage 3 pull-request checks
+        run: |
+          sleep 12
+          for attempt in $(seq 1 36); do
+            if gh pr checks "${{ steps.pr.outputs.url }}" --watch --fail-fast; then
+              exit 0
+            fi
+            echo "Stage 3 checks are not ready or not green (${attempt}/36)."
+            sleep 10
+          done
+          exit 1
+
+      - name: Merge verified Stage 3
+        run: |
+          gh pr merge "${{ steps.pr.outputs.url }}" \
+            --squash \
+            --delete-branch \
+            --match-head-commit "${{ steps.commit.outputs.head_sha }}"
