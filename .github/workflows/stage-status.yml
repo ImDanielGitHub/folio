@@ -1,0 +1,101 @@
+name: Stage programme status
+
+on:
+  push:
+    branches:
+      - automation/stage-status
+    paths:
+      - .github/workflows/stage-status.yml
+
+permissions:
+  contents: write
+  pull-requests: read
+  actions: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ImDanielGitHub/folio
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Collect stage and pull-request state
+        run: |
+          mkdir -p status/logs
+          main_sha=$(gh api "repos/${REPOSITORY}/commits/main" --jq .sha)
+          printf '{\n  "generatedAt": %s,\n  "mainSha": %s,\n  "stages": [\n' \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ | jq -R .)" \
+            "$(printf '%s' "$main_sha" | jq -R .)" \
+            > status/stage-status.json
+
+          first=1
+          for stage in $(seq 1 12); do
+            number=$(printf '%02d' "$stage")
+            case "$stage" in
+              1)
+                automation_branch="agent/source-export-20260826"
+                product_branch="agent/production-hardening"
+                ;;
+              2) automation_branch="automation/stage-2-finance-correctness"; product_branch="stage/02-finance-correctness" ;;
+              3) automation_branch="automation/stage-3-local-security"; product_branch="stage/03-local-security" ;;
+              4) automation_branch="automation/stage-4-data-durability"; product_branch="stage/04-data-durability" ;;
+              5) automation_branch="automation/stage-5-run-lifecycle"; product_branch="stage/05-run-lifecycle" ;;
+              6) automation_branch="automation/stage-6-runtime-contracts"; product_branch="stage/06-runtime-contracts" ;;
+              7) automation_branch="automation/stage-7-scheduler-outbox"; product_branch="stage/07-scheduler-outbox" ;;
+              8) automation_branch="automation/stage-8-accounting-handoff"; product_branch="stage/08-accounting-handoff" ;;
+              9) automation_branch="automation/stage-9-data-control"; product_branch="stage/09-owner-data-control" ;;
+              10) automation_branch="automation/stage-10-telegram-live"; product_branch="stage/10-telegram-live" ;;
+              11) automation_branch="automation/stage-11-model-measurement"; product_branch="stage/11-model-measurement" ;;
+              12) automation_branch="automation/stage-12-release-engineering"; product_branch="stage/12-release-engineering" ;;
+            esac
+
+            run=$(gh run list --repo "$REPOSITORY" --branch "$automation_branch" --limit 1 \
+              --json databaseId,status,conclusion,headSha,url,displayTitle,createdAt,updatedAt \
+              --jq '.[0] // {}')
+            run_id=$(printf '%s' "$run" | jq -r '.databaseId // empty')
+            if [[ -n "$run_id" ]]; then
+              gh run view "$run_id" --repo "$REPOSITORY" --log-failed \
+                > "status/logs/stage-${number}-failed.log" 2>&1 || true
+            else
+              : > "status/logs/stage-${number}-failed.log"
+            fi
+
+            prs=$(gh pr list --repo "$REPOSITORY" --state all \
+              --search "head:${product_branch}" --limit 10 \
+              --json number,title,state,isDraft,mergedAt,headRefName,headRefOid,baseRefName,url,createdAt,updatedAt)
+            branch_exists=false
+            if git ls-remote --exit-code --heads origin "$product_branch" >/dev/null 2>&1; then
+              branch_exists=true
+            fi
+
+            entry=$(jq -n \
+              --argjson stage "$stage" \
+              --arg automationBranch "$automation_branch" \
+              --arg productBranch "$product_branch" \
+              --argjson productBranchExists "$branch_exists" \
+              --argjson latestAutomationRun "$run" \
+              --argjson pullRequests "$prs" \
+              '{stage:$stage,automationBranch:$automationBranch,productBranch:$productBranch,productBranchExists:$productBranchExists,latestAutomationRun:$latestAutomationRun,pullRequests:$pullRequests}')
+            if [[ "$first" -eq 0 ]]; then printf ',\n' >> status/stage-status.json; fi
+            first=0
+            printf '    %s' "$entry" >> status/stage-status.json
+          done
+          printf '\n  ]\n}\n' >> status/stage-status.json
+
+      - name: Commit the status snapshot
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add status
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "chore: record staged programme status [skip ci]"
+          git push origin HEAD:automation/stage-status
