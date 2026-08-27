@@ -67,7 +67,9 @@ async function requestJson<T>(path: string, init?: RequestInit, timeoutMs = 2400
       const problem = await apiProblemFromResponse(response);
       if (
         attempt + 1 >= maximumAttempts
-        || !shouldRetryRequest(method, response.status)
+        || !shouldRetryRequest(
+          method, response.status, false, problem.retryable,
+        )
       ) {
         throw problem;
       }

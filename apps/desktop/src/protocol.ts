@@ -110,8 +110,9 @@ export function shouldRetryRequest(
   method: string,
   status: number | null,
   networkFailure = false,
+  declaredRetryable = true,
 ): boolean {
-  if (!SAFE_METHODS.has(method.toUpperCase())) return false;
+  if (!declaredRetryable || !SAFE_METHODS.has(method.toUpperCase())) return false;
   if (networkFailure) return true;
   return status !== null && RETRYABLE_STATUSES.has(status);
 }

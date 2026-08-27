@@ -50,6 +50,7 @@ test("decodes SSE frames split across network chunks", () => {
 
 test("retries only safe transient requests", () => {
   assert.equal(shouldRetryRequest("GET", 503), true);
+  assert.equal(shouldRetryRequest("GET", 503, false, false), false);
   assert.equal(shouldRetryRequest("GET", null, true), true);
   assert.equal(shouldRetryRequest("POST", 503), false);
   assert.equal(shouldRetryRequest("GET", 422), false);

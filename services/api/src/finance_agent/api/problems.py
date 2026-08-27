@@ -171,4 +171,15 @@ def install_problem_handlers(app: FastAPI) -> None:
         )
 
 
+    @app.exception_handler(Exception)
+    async def unexpected_problem(request: Request, _: Exception) -> JSONResponse:
+        return problem_response(
+            request,
+            status=500,
+            detail="The local Folio service could not complete the request.",
+            code="internal_error",
+            retryable=False,
+        )
+
+
 __all__ = ["install_problem_handlers", "problem_payload", "problem_response"]

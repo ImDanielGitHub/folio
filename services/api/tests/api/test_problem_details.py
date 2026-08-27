@@ -92,3 +92,34 @@ async def test_typed_connector_problem_preserves_safe_failure_metadata(
     assert payload["retryable"] is True
     assert payload["provider"] == "plaid"
     assert "detail" not in payload or not isinstance(payload.get("detail"), dict)
+
+
+class _ExplodingSnapshotService:
+    async def workspace_snapshot(self, workspace_id: str) -> dict[str, object]:
+        del workspace_id
+        raise RuntimeError("sensitive database internals")
+
+
+@pytest.mark.asyncio
+async def test_unexpected_errors_use_generic_problem_details(tmp_path: Path) -> None:
+    app = create_app(database_path=tmp_path / "unexpected.sqlite3", auto_seed=True)
+    original = app.state.finance_route_services
+    app.state.finance_route_services = _ExplodingSnapshotService()
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
+            base_url="http://test",
+        ) as client:
+            response = await client.get("/v1/workspaces/ws_koru_studio/snapshot")
+    finally:
+        await original.aclose()
+
+    assert response.status_code == 500
+    assert response.headers["content-type"].startswith("application/problem+json")
+    payload = response.json()
+    assert payload["code"] == "internal_error"
+    assert payload["retryable"] is False
+    assert payload["detail"] == (
+        "The local Folio service could not complete the request."
+    )
+    assert "sensitive database internals" not in response.text
