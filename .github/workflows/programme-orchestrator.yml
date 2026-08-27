@@ -1,0 +1,225 @@
+name: Folio staged audit programme
+
+on:
+  push:
+    branches:
+      - automation/programme-orchestrator
+    paths:
+      - .github/workflows/programme-orchestrator.yml
+      - automation/normalise_stage_workflow.py
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  actions: write
+  security-events: read
+
+concurrency:
+  group: folio-staged-audit-programme
+  cancel-in-progress: false
+
+jobs:
+  execute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ImDanielGitHub/folio
+
+    steps:
+      - name: Check out the orchestrator
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Normalise stage workflows for sequential execution
+        run: |
+          set -euo pipefail
+          normaliser="$GITHUB_WORKSPACE/automation/normalise_stage_workflow.py"
+
+          normalise() {
+            local stage="$1" branch="$2" workflow="$3" dependency="$4"
+            local directory="/tmp/folio-normalise-${stage}"
+            git fetch origin "$branch"
+            git worktree add --detach "$directory" "origin/$branch"
+            args=("$directory/$workflow" "folio-stage-${stage}")
+            if [[ -n "$dependency" ]]; then
+              args+=(--dependency "$dependency")
+            fi
+            python "$normaliser" "${args[@]}"
+            if ! git -C "$directory" diff --quiet; then
+              git -C "$directory" add "$workflow"
+              git -C "$directory" commit -m "ci: make Stage ${stage} sequential and fail-fast"
+              git -C "$directory" push origin "HEAD:$branch"
+            fi
+            git worktree remove --force "$directory"
+          }
+
+          normalise 01 agent/source-export-20260826 .github/workflows/source-export.yml ""
+          normalise 02 automation/stage-2-finance-correctness .github/workflows/stage2.yml agent/production-hardening
+          normalise 03 automation/stage-3-local-security .github/workflows/stage3.yml stage/02-finance-correctness
+          normalise 04 automation/stage-4-data-durability .github/workflows/stage4.yml stage/03-local-security
+          normalise 05 automation/stage-5-run-lifecycle .github/workflows/stage5.yml stage/04-data-durability
+          normalise 06 automation/stage-6-runtime-contracts .github/workflows/stage6.yml stage/05-run-lifecycle
+          normalise 07 automation/stage-7-scheduler-outbox .github/workflows/stage7.yml stage/06-runtime-contracts
+          normalise 08 automation/stage-8-accounting-handoff .github/workflows/stage8.yml stage/07-scheduler-outbox
+          normalise 09 automation/stage-9-data-control .github/workflows/stage9.yml stage/08-accounting-handoff
+          normalise 10 automation/stage-10-telegram-live .github/workflows/stage10.yml stage/09-owner-data-control
+          normalise 11 automation/stage-11-model-measurement .github/workflows/stage11.yml stage/10-telegram-live
+          normalise 12 automation/stage-12-release-engineering .github/workflows/stage12.yml stage/11-model-measurement
+
+      - name: Execute and verify the stage chain
+        run: |
+          set -euo pipefail
+          mkdir -p status
+          printf '{"startedAt":%s,"completedStages":[]}\n' \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ | jq -R .)" \
+            > status/programme-progress.json
+
+          merged_count() {
+            gh pr list --repo "$REPOSITORY" --state merged \
+              --search "head:$1" --json number --jq 'length' 2>/dev/null || echo 0
+          }
+
+          product_branch_exists() {
+            git ls-remote --exit-code --heads origin "$1" >/dev/null 2>&1
+          }
+
+          merge_existing_product_branch() {
+            local stage="$1" product_branch="$2"
+            local pr
+            pr=$(gh pr list --repo "$REPOSITORY" --state open \
+              --search "head:${product_branch}" --limit 1 \
+              --json number,url,headRefOid,isDraft --jq '.[0] // empty')
+            if [[ -z "$pr" ]]; then
+              local body="Recovered Stage ${stage} branch. The stage automation had already pushed this branch after its targeted and full verification gates; this PR restores the review-and-check step."
+              local url
+              url=$(gh pr create --repo "$REPOSITORY" --base main \
+                --head "$product_branch" \
+                --title "Stage ${stage}: resume verified staged audit delivery" \
+                --body "$body")
+              pr=$(gh pr view "$url" --repo "$REPOSITORY" \
+                --json number,url,headRefOid,isDraft)
+            fi
+            local url head_sha draft
+            url=$(printf '%s' "$pr" | jq -r .url)
+            head_sha=$(printf '%s' "$pr" | jq -r .headRefOid)
+            draft=$(printf '%s' "$pr" | jq -r .isDraft)
+            if [[ "$draft" == "true" ]]; then
+              gh pr ready "$url" --repo "$REPOSITORY"
+            fi
+            sleep 15
+            if ! gh pr checks "$url" --repo "$REPOSITORY" --watch --fail-fast; then
+              echo "Existing Stage ${stage} PR checks are not green." >&2
+              return 1
+            fi
+            gh pr merge "$url" --repo "$REPOSITORY" --squash --delete-branch \
+              --match-head-commit "$head_sha"
+          }
+
+          trigger_stage() {
+            local stage="$1" automation_branch="$2"
+            local directory="/tmp/folio-trigger-${stage}"
+            git fetch origin "$automation_branch"
+            git worktree add --detach "$directory" "origin/$automation_branch"
+            git -C "$directory" commit --allow-empty \
+              -m "ci: trigger sequential Stage ${stage} execution"
+            git -C "$directory" push origin "HEAD:$automation_branch"
+            local sha
+            sha=$(git -C "$directory" rev-parse HEAD)
+            git worktree remove --force "$directory"
+            printf '%s' "$sha"
+          }
+
+          wait_for_run() {
+            local stage="$1" branch="$2" sha="$3"
+            local run_id=""
+            for attempt in $(seq 1 80); do
+              run_id=$(gh run list --repo "$REPOSITORY" --branch "$branch" --limit 30 \
+                --json databaseId,headSha,event \
+                --jq ".[] | select(.headSha == \"$sha\") | .databaseId" | head -1)
+              if [[ -n "$run_id" ]]; then break; fi
+              sleep 3
+            done
+            if [[ -z "$run_id" ]]; then
+              echo "No workflow run appeared for Stage ${stage} at ${sha}." >&2
+              return 1
+            fi
+            if ! gh run watch "$run_id" --repo "$REPOSITORY" --exit-status; then
+              gh run view "$run_id" --repo "$REPOSITORY" --log-failed \
+                > "status/stage-${stage}-failed.log" 2>&1 || true
+              printf '{"failedStage":%s,"runId":%s,"runUrl":%s,"recordedAt":%s}\n' \
+                "$(printf '%s' "$stage" | jq -R .)" \
+                "$run_id" \
+                "$(gh run view "$run_id" --repo "$REPOSITORY" --json url --jq .url | jq -R .)" \
+                "$(date -u +%Y-%m-%dT%H:%M:%SZ | jq -R .)" \
+                > status/programme-failure.json
+              git add status
+              git commit -m "chore: record Stage ${stage} failure [skip ci]" || true
+              git push origin HEAD:automation/programme-orchestrator || true
+              return 1
+            fi
+          }
+
+          record_completed() {
+            local stage="$1" product_branch="$2"
+            local temporary
+            temporary=$(mktemp)
+            jq --arg stage "$stage" --arg branch "$product_branch" \
+              '.completedStages += [{stage:$stage,productBranch:$branch,recordedAt:(now|todateiso8601)}]' \
+              status/programme-progress.json > "$temporary"
+            mv "$temporary" status/programme-progress.json
+            git add status/programme-progress.json
+            git commit -m "chore: record completed Stage ${stage} [skip ci]"
+            git push origin HEAD:automation/programme-orchestrator
+          }
+
+          run_stage() {
+            local stage="$1" automation_branch="$2" product_branch="$3"
+            if [[ "$(merged_count "$product_branch")" -gt 0 ]]; then
+              echo "Stage ${stage} is already merged."
+              record_completed "$stage" "$product_branch"
+              return 0
+            fi
+            if [[ "$stage" != "01" ]] && product_branch_exists "$product_branch"; then
+              echo "Stage ${stage} already has a product branch; resuming its PR checks."
+              merge_existing_product_branch "$stage" "$product_branch"
+            else
+              local sha
+              sha=$(trigger_stage "$stage" "$automation_branch")
+              wait_for_run "$stage" "$automation_branch" "$sha"
+            fi
+            if [[ "$(merged_count "$product_branch")" -eq 0 ]]; then
+              echo "Stage ${stage} workflow completed without a verified merge." >&2
+              return 1
+            fi
+            record_completed "$stage" "$product_branch"
+          }
+
+          run_stage 01 agent/source-export-20260826 agent/production-hardening
+          run_stage 02 automation/stage-2-finance-correctness stage/02-finance-correctness
+          run_stage 03 automation/stage-3-local-security stage/03-local-security
+          run_stage 04 automation/stage-4-data-durability stage/04-data-durability
+          run_stage 05 automation/stage-5-run-lifecycle stage/05-run-lifecycle
+          run_stage 06 automation/stage-6-runtime-contracts stage/06-runtime-contracts
+          run_stage 07 automation/stage-7-scheduler-outbox stage/07-scheduler-outbox
+          run_stage 08 automation/stage-8-accounting-handoff stage/08-accounting-handoff
+          run_stage 09 automation/stage-9-data-control stage/09-owner-data-control
+          run_stage 10 automation/stage-10-telegram-live stage/10-telegram-live
+          run_stage 11 automation/stage-11-model-measurement stage/11-model-measurement
+          run_stage 12 automation/stage-12-release-engineering stage/12-release-engineering
+
+          jq --arg completedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '.completedAt=$completedAt | .status="completed"' \
+            status/programme-progress.json > status/programme-progress.tmp
+          mv status/programme-progress.tmp status/programme-progress.json
+          git add status/programme-progress.json
+          git commit -m "chore: record staged programme completion [skip ci]"
+          git push origin HEAD:automation/programme-orchestrator
