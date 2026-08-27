@@ -1,0 +1,165 @@
+name: Materialise clean Stage 3a
+
+on:
+  push:
+    branches:
+      - agent/stage3-source-export-20260827
+
+permissions:
+  contents: write
+
+concurrency:
+  group: materialise-clean-stage3a
+  cancel-in-progress: true
+
+jobs:
+  materialise:
+    if: ${{ contains(github.event.head_commit.message, '[materialise-stage3a]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      LM_STUDIO_BASE_URL: http://127.0.0.1:65530/v1
+      OPENAI_API_KEY: ""
+      CONTROLLER_BRANCH: agent/stage3-source-export-20260827
+      TARGET_BRANCH: agent/stage3-client-protocol-20260827
+      ARCHIVE_SHA256: 8e9a98033b3776b5e10dc2f67ad8073b81cde0dac7e96e9c42a4085382056bef
+
+    steps:
+      - name: Check out current main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Create clean target branch
+        run: |
+          set -euo pipefail
+          git fetch --prune origin main
+          git switch -C "$TARGET_BRANCH" origin/main
+          git fetch origin "refs/heads/$CONTROLLER_BRANCH:refs/remotes/origin/controller"
+
+      - name: Reconstruct and validate Stage 3a archive
+        run: |
+          set -euo pipefail
+          git show refs/remotes/origin/controller:.stage3/stage3-product.tar.xz.b64 > /tmp/stage3a.b64
+          base64 --decode /tmp/stage3a.b64 > /tmp/stage3a-product.tar.xz
+          echo "$ARCHIVE_SHA256  /tmp/stage3a-product.tar.xz" | sha256sum -c -
+          python - <<'PY'
+          from pathlib import PurePosixPath
+          import tarfile
+
+          expected = {
+              ".gitignore",
+              "apps/desktop/package.json",
+              "apps/desktop/src/App.tsx",
+              "apps/desktop/src/protocol.ts",
+              "apps/desktop/src/runtimePolicy.ts",
+              "apps/desktop/src/transport.ts",
+              "apps/desktop/src/types.ts",
+              "apps/desktop/src/vite-env.d.ts",
+              "apps/desktop/tests/protocol.test.ts",
+              "apps/desktop/tsconfig.tests.json",
+              "docs/AUDIT_PROGRAMME.md",
+              "services/api/src/finance_agent/api/app.py",
+              "services/api/src/finance_agent/api/http_security.py",
+              "services/api/src/finance_agent/api/problems.py",
+              "services/api/src/finance_agent/api/routes/router.py",
+              "services/api/tests/api/test_problem_details.py",
+          }
+          actual: set[str] = set()
+          with tarfile.open("/tmp/stage3a-product.tar.xz", "r:xz") as archive:
+              for member in archive.getmembers():
+                  name = member.name
+                  while name.startswith("./"):
+                      name = name[2:]
+                  path = PurePosixPath(name)
+                  if member.issym() or member.islnk() or path.is_absolute() or ".." in path.parts:
+                      raise SystemExit(f"unsafe archive member: {member.name}")
+                  if member.isfile():
+                      actual.add(name)
+                  elif not member.isdir():
+                      raise SystemExit(f"unsupported archive member: {member.name}")
+          if actual != expected:
+              raise SystemExit(
+                  "archive manifest mismatch\n"
+                  f"missing: {sorted(expected - actual)}\n"
+                  f"unexpected: {sorted(actual - expected)}"
+              )
+          print(f"Stage 3a archive manifest verified: {len(actual)} files")
+          PY
+          tar -xJf /tmp/stage3a-product.tar.xz
+
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          uv sync --project services/api --frozen
+
+      - name: Apply repository formatting rules
+        run: |
+          uv run --project services/api ruff check --fix --unsafe-fixes --config services/api/pyproject.toml services/api/src services/api/tests
+          git diff --check
+
+      - name: Run complete verification gate
+        run: pnpm verify
+
+      - name: Verify clean review surface
+        run: |
+          set -euo pipefail
+          git add -A
+          cat > /tmp/expected-files <<'EOF'
+          .gitignore
+          apps/desktop/package.json
+          apps/desktop/src/App.tsx
+          apps/desktop/src/protocol.ts
+          apps/desktop/src/runtimePolicy.ts
+          apps/desktop/src/transport.ts
+          apps/desktop/src/types.ts
+          apps/desktop/src/vite-env.d.ts
+          apps/desktop/tests/protocol.test.ts
+          apps/desktop/tsconfig.tests.json
+          docs/AUDIT_PROGRAMME.md
+          services/api/src/finance_agent/api/app.py
+          services/api/src/finance_agent/api/http_security.py
+          services/api/src/finance_agent/api/problems.py
+          services/api/src/finance_agent/api/routes/router.py
+          services/api/tests/api/test_problem_details.py
+          EOF
+          sort -o /tmp/expected-files /tmp/expected-files
+          git diff --cached --name-only | sort > /tmp/actual-files
+          diff -u /tmp/expected-files /tmp/actual-files
+          if git diff --cached --name-only | grep -E '(^|/)(\.stage3|materialise-stage3a|source-export-stage3|apply-client-protocol|apply_.*stack)'; then
+            echo "One-shot staging machinery leaked into the clean branch" >&2
+            exit 1
+          fi
+          git diff --cached --check
+
+      - name: Commit and push verified Stage 3a
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "feat: add typed client protocol and truthful failure handling [stage3-client-protocol-clean]"
+          git push --force-with-lease origin "HEAD:refs/heads/$TARGET_BRANCH"
