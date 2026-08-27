@@ -1,4 +1,4 @@
-name: Apply provider and run correctness v2
+name: Finalise provider and run correctness
 
 on:
   push:
@@ -9,23 +9,32 @@ permissions:
   contents: write
 
 concurrency:
-  group: apply-provider-run-correctness-v2
+  group: finalise-provider-run-correctness
   cancel-in-progress: true
 
 jobs:
-  apply:
+  finalise:
     if: ${{ !contains(github.event.head_commit.message, '[provider-run-applied]') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
     env:
       LM_STUDIO_BASE_URL: http://127.0.0.1:65530/v1
       OPENAI_API_KEY: ""
+      EXPECTED_MAIN_SHA: c5882497431fed530acebf3b9ca30e239ebc1604
     steps:
       - name: Check out correctness branch
         uses: actions/checkout@v4
         with:
-          ref: agent/provider-run-correctness-20260826
+          ref: ${{ github.sha }}
           fetch-depth: 0
+
+      - name: Verify exact prerequisite and staging head
+        run: |
+          set -euo pipefail
+          git fetch --prune origin main
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN_SHA"
+          test "$(git merge-base HEAD origin/main)" = "$EXPECTED_MAIN_SHA"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -51,8 +60,9 @@ jobs:
           version: "0.10.0"
           enable-cache: true
 
-      - name: Verify staged fragments
+      - name: Verify staged inputs
         run: |
+          set -euo pipefail
           cat > /tmp/provider-run-parts.sha256 <<'EOF'
           8a3ba4a6d2ffc2e2f76fd4fb0311b4dab5007aa856b8da4927f8e1f5e04f785a  .audit-stack/provider-run.part00
           2f6405157f71628a902d8f39c8a0f61400001678dafdb3360bfd29f3769e574c  .audit-stack/provider-run.part01
@@ -62,58 +72,62 @@ jobs:
           9149a533a589a54589558631f8914eb8972d37ecfe030355ea7c8d50c705924b  .audit-stack/provider-run.part05
           d05ae71f06b1cea5d276248dd6ce1e68eb16a7da5e209406bb915fa8d86dd39c  .audit-stack/provider-run.part06
           8e4cbf092bb74943c85a6f689571913208314d9597f1f1f39e8fa42d785617f3  .audit-stack/provider-run.part07
+          d4cd8e8ac70b36f95268f7a47d9e2750c0972e7ada0ff007e2704f8588742b66  scripts/apply_provider_origin_compat.py
           EOF
           sha256sum -c /tmp/provider-run-parts.sha256
-
-      - name: Reconstruct and apply verified source bundle
-        run: |
           cat .audit-stack/provider-run.part* | base64 --decode > /tmp/provider-run-files.tar.gz
           echo "833cc9b37d5fe2e14b0699bf7f276d8c79bcde213106333f498f250ed09558bb  /tmp/provider-run-files.tar.gz" | sha256sum -c -
+
+      - name: Apply reviewed product tree
+        run: |
+          set -euo pipefail
           tar -xzf /tmp/provider-run-files.tar.gz
           python scripts/apply_provider_origin_compat.py
+          cat > /tmp/stage2-final-fixes.patch.gz.b64 <<'PATCH'
+          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
+          PATCH
+          base64 --decode /tmp/stage2-final-fixes.patch.gz.b64 | gzip --decompress > /tmp/stage2-final-fixes.patch
+          echo "7d6be7ebda58a1f132fa786e912b2618735b43f0c998655948a1fb78f32582f0  /tmp/stage2-final-fixes.patch" | sha256sum -c -
+          git apply --check /tmp/stage2-final-fixes.patch
+          git apply /tmp/stage2-final-fixes.patch
+          test ! -e ':memory:'
+          git diff --check
 
       - name: Install dependencies
         run: |
           pnpm install --frozen-lockfile
           uv sync --project services/api --frozen
 
-      - name: Apply Ruff fixes
+      - name: Apply deterministic Ruff fixes
         run: |
           uv run --project services/api ruff check --fix --unsafe-fixes --config services/api/pyproject.toml services/api/src services/api/tests
           git diff --check
 
-      - name: Verify contracts
-        run: pnpm contracts:check
-
-      - name: Verify lint
-        run: pnpm lint
-
-      - name: Verify types
-        run: pnpm typecheck
-
-      - name: Verify Python tests
-        run: pnpm test:python
-
-      - name: Verify Electron tests
-        run: pnpm test:desktop
-
-      - name: Verify production build
-        run: pnpm build
-
-      - name: Verify offline model evaluations
-        run: pnpm eval:offline
+      - name: Run complete verification gate
+        run: pnpm verify
 
       - name: Remove one-shot staging machinery
         run: |
+          set -euo pipefail
           rm -rf .audit-stack
           rm -f scripts/apply_provider_origin_compat.py
+          rm -f scripts/apply_provider_run_correctness.py
           rm -f .github/workflows/apply-provider-run-correctness.yml
           rm -f .github/workflows/apply-provider-run-correctness-v2.yml
+          test ! -e ':memory:'
+          git diff --check
+          if git diff --name-only origin/main | grep -E '^(\.audit-stack/|\.github/workflows/apply-provider-run-correctness|scripts/apply_provider_)'; then
+            echo "One-shot staging files remain in the final diff" >&2
+            exit 1
+          fi
 
-      - name: Commit verified correctness slice
+      - name: Commit verified Stage 2 product changes
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
+          git diff --cached --check
+          test -n "$(git diff --cached --name-only)"
           git commit -m "fix: complete provider and run correctness semantics [provider-run-applied]"
           git push origin HEAD:agent/provider-run-correctness-20260826
