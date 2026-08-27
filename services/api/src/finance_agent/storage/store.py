@@ -23,11 +23,13 @@ class SQLiteStore:
     """One-workspace SQLite store with explicit transactional boundaries."""
 
     def __init__(self, database_path: str | Path) -> None:
-        self.database_path = str(database_path)
-        if self.database_path != ":memory:":
-            Path(self.database_path).expanduser().resolve().parent.mkdir(
-                parents=True, exist_ok=True
-            )
+        raw_path = str(database_path)
+        if raw_path == ":memory:":
+            self.database_path = raw_path
+            return
+        resolved = Path(raw_path).expanduser().resolve()
+        resolved.parent.mkdir(parents=True, exist_ok=True)
+        self.database_path = str(resolved)
 
     def _open_connection(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.database_path, timeout=30.0)

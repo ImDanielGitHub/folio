@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from datetime import date
-from typing import Annotated, Any
+from typing import Annotated, Any, NoReturn
 
 from fastapi import (
     APIRouter,
@@ -103,7 +103,15 @@ PathIdentifier = Annotated[
 Services = Annotated[RouteServices, Depends(get_route_services)]
 
 
-def create_router() -> APIRouter:
+def _raise_connector_error(exc: ConnectorError) -> NoReturn:
+    raise HTTPException(status_code=exc.status_code, detail=exc.as_detail()) from exc
+
+
+def create_router(
+    *,
+    enable_demo: bool = True,
+    enable_diagnostics: bool = True,
+) -> APIRouter:
     router = APIRouter()
 
     @router.get("/health")
@@ -176,8 +184,7 @@ def create_router() -> APIRouter:
                 )
             )
         except ConnectorError as exc:
-            status = 409 if str(exc) == "Akahu is disabled or unconfigured" else 502
-            raise HTTPException(status_code=status, detail=str(exc)) from exc
+            _raise_connector_error(exc)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -196,8 +203,7 @@ def create_router() -> APIRouter:
         try:
             return dict(await services.create_plaid_link_token())
         except ConnectorError as exc:
-            status = 409 if "disabled or unconfigured" in str(exc) else 502
-            raise HTTPException(status_code=status, detail=str(exc)) from exc
+            _raise_connector_error(exc)
 
     @router.post("/v1/connectors/plaid/sync")
     async def sync_plaid(
@@ -208,8 +214,7 @@ def create_router() -> APIRouter:
         try:
             return dict(await services.sync_plaid(public_token=body.public_token))
         except ConnectorError as exc:
-            status = 409 if "disabled or unconfigured" in str(exc) else 502
-            raise HTTPException(status_code=status, detail=str(exc)) from exc
+            _raise_connector_error(exc)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -278,7 +283,7 @@ def create_router() -> APIRouter:
             },
         )
 
-    @router.post("/v1/threads/{thread_id}/turns", status_code=202)
+    @router.post("/v1/threads/{thread_id}/turns")
     async def submit_turn(
         thread_id: PathIdentifier,
         body: OwnerTurnRequest,
@@ -357,6 +362,17 @@ def create_router() -> APIRouter:
             )
         )
 
+    if not enable_demo:
+        router.routes = [
+            route for route in router.routes if getattr(route, "path", None) != "/v1/demo/reset"
+        ]
+    if not enable_diagnostics:
+        router.routes = [
+            route
+            for route in router.routes
+            if getattr(route, "path", None)
+            != "/v1/diagnostics/working-understanding"
+        ]
     return router
 
 

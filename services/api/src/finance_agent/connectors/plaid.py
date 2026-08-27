@@ -25,7 +25,11 @@ from urllib.parse import urlparse
 
 import httpx
 
-from finance_agent.connectors.base import ConnectorError
+from finance_agent.connectors.base import (
+    ConnectorError,
+    connector_unconfigured,
+    provider_http_error,
+)
 
 PLAID_HOSTS = {
     "sandbox": "https://sandbox.plaid.com",
@@ -108,6 +112,15 @@ class PlaidTransaction:
     currency: str
     external_reference: str
     pending: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class PlaidSyncPage:
+    added: tuple[Mapping[str, object], ...]
+    modified: tuple[Mapping[str, object], ...]
+    removed: tuple[Mapping[str, object], ...]
+    next_cursor: str | None
+    has_more: bool
 
 
 def _stable_provider_id(prefix: str, value: str) -> str:
@@ -211,8 +224,14 @@ def normalise_transactions(
         account = account_by_provider_id.get(provider_account_id)
         if account is None:
             raise ConnectorError("Plaid transaction references an unknown account")
-        pending = bool(item.get("pending"))
-        if pending:
+        pending_value = item.get("pending")
+        if not isinstance(pending_value, bool):
+            raise ConnectorError(
+                "Plaid transaction pending must be a boolean",
+                code="provider_invalid_response",
+                provider="plaid",
+            )
+        if pending_value:
             continue
         external_reference = f"plaid:{provider_account_id}:{provider_id}"
         if external_reference in seen:
@@ -236,7 +255,7 @@ def normalise_transactions(
                 amount_minor=_amount_minor(item),
                 currency=canonical_currency,
                 external_reference=external_reference,
-                pending=False,
+                pending=pending_value,
             )
         )
     return tuple(
@@ -284,7 +303,7 @@ class PlaidReadOnlyAdapter:
 
     def _auth_body(self) -> dict[str, str]:
         if not (self.config.enabled and self.config.client_id and self.config.secret):
-            raise ConnectorError("Plaid is disabled or unconfigured")
+            raise connector_unconfigured("Plaid")
         return {
             "client_id": self.config.client_id,
             "secret": self.config.secret,
@@ -300,11 +319,30 @@ class PlaidReadOnlyAdapter:
                 json=payload,
             )
             response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise provider_http_error("Plaid", exc.response.status_code) from exc
+        except httpx.RequestError as exc:
+            raise ConnectorError(
+                "Plaid is temporarily unavailable",
+                code="provider_unavailable",
+                retryable=True,
+                status_code=503,
+                provider="plaid",
+            ) from exc
+        try:
             data = response.json()
-        except (httpx.HTTPError, ValueError) as exc:
-            raise ConnectorError("Plaid read request failed") from exc
+        except ValueError as exc:
+            raise ConnectorError(
+                "Plaid returned invalid JSON",
+                code="provider_invalid_response",
+                provider="plaid",
+            ) from exc
         if not isinstance(data, Mapping):
-            raise ConnectorError("Plaid returned an invalid read response")
+            raise ConnectorError(
+                "Plaid returned an invalid read response",
+                code="provider_invalid_response",
+                provider="plaid",
+            )
         return data
 
     async def create_link_token(self, *, client_user_id: str = "folio_local_owner") -> str:
@@ -371,12 +409,29 @@ class PlaidReadOnlyAdapter:
             "Plaid sync requires PLAID_ACCESS_TOKEN or a Link public_token"
         )
 
+    @staticmethod
+    def _mapping_items(
+        payload: Mapping[str, object],
+        field: str,
+    ) -> tuple[Mapping[str, object], ...]:
+        raw = payload.get(field)
+        if not isinstance(raw, list):
+            raise ConnectorError(
+                f"Plaid response did not contain a {field} list",
+                code="provider_invalid_response",
+                provider="plaid",
+            )
+        if any(not isinstance(item, Mapping) for item in raw):
+            raise ConnectorError(
+                f"Plaid {field} contained a non-object item",
+                code="provider_invalid_response",
+                provider="plaid",
+            )
+        return tuple(item for item in raw if isinstance(item, Mapping))
+
     async def list_accounts(self, *, access_token: str) -> tuple[Mapping[str, object], ...]:
         response = await self._post("/accounts/get", {"access_token": access_token})
-        raw = response.get("accounts")
-        if not isinstance(raw, list):
-            raise ConnectorError("Plaid accounts response did not contain an account list")
-        return tuple(item for item in raw if isinstance(item, Mapping))
+        return self._mapping_items(response, "accounts")
 
     async def sync_transactions(
         self,
@@ -384,18 +439,36 @@ class PlaidReadOnlyAdapter:
         access_token: str,
         cursor: str | None = None,
         count: int = 100,
-    ) -> tuple[tuple[Mapping[str, object], ...], str | None, bool]:
+    ) -> PlaidSyncPage:
         body: dict[str, object] = {"access_token": access_token, "count": count}
         if cursor:
             body["cursor"] = cursor
         response = await self._post("/transactions/sync", body)
-        added = response.get("added")
-        if not isinstance(added, list):
-            raise ConnectorError("Plaid transactions sync response was incomplete")
-        next_cursor = response.get("next_cursor")
-        has_more = bool(response.get("has_more"))
-        return (
-            tuple(item for item in added if isinstance(item, Mapping)),
-            str(next_cursor) if isinstance(next_cursor, str) and next_cursor else None,
-            has_more,
+        next_cursor_value = response.get("next_cursor")
+        if next_cursor_value is not None and not isinstance(next_cursor_value, str):
+            raise ConnectorError(
+                "Plaid next_cursor must be text or null",
+                code="provider_invalid_response",
+                provider="plaid",
+            )
+        has_more = response.get("has_more")
+        if not isinstance(has_more, bool):
+            raise ConnectorError(
+                "Plaid has_more must be a boolean",
+                code="provider_invalid_response",
+                provider="plaid",
+            )
+        next_cursor = next_cursor_value.strip() if isinstance(next_cursor_value, str) else None
+        if has_more and not next_cursor:
+            raise ConnectorError(
+                "Plaid omitted next_cursor while has_more was true",
+                code="provider_invalid_response",
+                provider="plaid",
+            )
+        return PlaidSyncPage(
+            added=self._mapping_items(response, "added"),
+            modified=self._mapping_items(response, "modified"),
+            removed=self._mapping_items(response, "removed"),
+            next_cursor=next_cursor or None,
+            has_more=has_more,
         )

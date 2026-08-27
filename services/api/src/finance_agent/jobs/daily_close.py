@@ -8,6 +8,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from finance_agent.finance.service import (
     POLICY_VERSION,
@@ -70,7 +71,18 @@ class DailyCloseService:
         self.worker_id = worker_id
         self.clock = clock or (lambda: datetime.now(UTC))
 
-    def _input_hash(self) -> str:
+    def _close_date(self) -> str:
+        workspace = self.engine.store.fetch_one(
+            "SELECT timezone FROM workspaces WHERE workspace_id = ?",
+            (WORKSPACE_ID,),
+        )
+        timezone = str(workspace["timezone"]) if workspace is not None else "UTC"
+        current = self.clock()
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=UTC)
+        return current.astimezone(ZoneInfo(timezone)).date().isoformat()
+
+    def _input_hash(self, *, close_date: str | None = None) -> str:
         sources = self.engine.store.fetch_all(
             """
             SELECT source_item_id, source_type, digest, mapping_version, row_count
@@ -99,24 +111,51 @@ class DailyCloseService:
         provider_events = self.engine.store.fetch_all(
             """
             SELECT provider, provider_account_id, provider_transaction_id, event_type,
-                   amount_minor, currency, recorded_at
+                   amount_minor, currency, recorded_at, supersedes_event_id
             FROM provider_transaction_events
             WHERE workspace_id = ?
             ORDER BY provider, provider_account_id, provider_transaction_id, recorded_at, event_id
             """,
             (WORKSPACE_ID,),
         )
+        claims = self.engine.store.fetch_all(
+            """
+            SELECT claim_id, claim_type, statement, scope_json, effective_date,
+                   status, supersedes_claim_id
+            FROM claims
+            WHERE workspace_id = ? AND status = 'active'
+            ORDER BY effective_date, recorded_at, claim_id
+            """,
+            (WORKSPACE_ID,),
+        )
+        job_definition = self.engine.store.fetch_one(
+            """
+            SELECT policy_version, enabled
+            FROM job_definitions
+            WHERE workspace_id = ? AND job_type = 'daily_close'
+            """,
+            (WORKSPACE_ID,),
+        )
         payload = {
+            "stateVectorVersion": "daily_close_state@2",
+            "closeDate": close_date or self._close_date(),
             "policyVersion": POLICY_VERSION,
+            "jobDefinition": dict(job_definition) if job_definition is not None else None,
             "workspace": dict(workspace) if workspace is not None else None,
             "sources": [dict(row) for row in sources],
             "activeRules": [dict(row) for row in rules],
+            "activeClaims": [dict(row) for row in claims],
             "providerEvents": [dict(row) for row in provider_events],
         }
         return hashlib.sha256(canonical_json(payload).encode()).hexdigest()
 
-    def identity(self, *, requested_idempotency_key: str | None = None) -> DailyCloseIdentity:
-        input_hash = self._input_hash()
+    def identity(
+        self,
+        *,
+        requested_idempotency_key: str | None = None,
+        close_date: str | None = None,
+    ) -> DailyCloseIdentity:
+        input_hash = self._input_hash(close_date=close_date)
         idempotency_key = requested_idempotency_key or f"daily-close:{WORKSPACE_ID}:{input_hash}"
         existing_input = self.engine.store.fetch_one(
             """
@@ -206,8 +245,16 @@ class DailyCloseService:
             suffix=suffix,
         )
 
-    def run(self, *, requested_idempotency_key: str | None = None) -> DailyCloseResult:
-        identity = self.identity(requested_idempotency_key=requested_idempotency_key)
+    def run(
+        self,
+        *,
+        requested_idempotency_key: str | None = None,
+        close_date: str | None = None,
+    ) -> DailyCloseResult:
+        identity = self.identity(
+            requested_idempotency_key=requested_idempotency_key,
+            close_date=close_date,
+        )
         existing = self.engine.store.fetch_one(
             """
             SELECT * FROM job_runs
