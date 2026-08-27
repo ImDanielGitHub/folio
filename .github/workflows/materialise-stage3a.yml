@@ -65,7 +65,10 @@ jobs:
       - name: Reconstruct and validate Stage 3a archive
         run: |
           set -euo pipefail
-          git show refs/remotes/origin/controller:.stage3/stage3-product.tar.xz.b64 > /tmp/stage3a.b64
+          : > /tmp/stage3a.b64
+          for part in 00 01 02 03 04 05 06 07 08; do
+            git show "refs/remotes/origin/controller:.stage3/stage3-product.part${part}" >> /tmp/stage3a.b64
+          done
           base64 --decode /tmp/stage3a.b64 > /tmp/stage3a-product.tar.xz
           echo "$ARCHIVE_SHA256  /tmp/stage3a-product.tar.xz" | sha256sum -c -
           python - <<'PY'
