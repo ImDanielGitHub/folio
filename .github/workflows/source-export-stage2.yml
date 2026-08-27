@@ -13,9 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check out repository
+      - name: Check out Stage 2 branch
         uses: actions/checkout@v4
         with:
+          ref: agent/provider-run-correctness-20260826
           fetch-depth: 1
 
       - name: Create source archive
@@ -24,12 +25,12 @@ jobs:
             --exclude=.git \
             --exclude=node_modules \
             --exclude=services/api/.venv \
-            -czf /tmp/folio-main-stage2.tar.gz .
+            -czf /tmp/folio-stage2-staging.tar.gz .
 
       - name: Upload source archive
         uses: actions/upload-artifact@v4
         with:
-          name: folio-main-stage2
-          path: /tmp/folio-main-stage2.tar.gz
+          name: folio-stage2-staging
+          path: /tmp/folio-stage2-staging.tar.gz
           if-no-files-found: error
           retention-days: 1
