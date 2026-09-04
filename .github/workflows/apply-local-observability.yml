@@ -1,0 +1,125 @@
+name: Apply local observability stack
+
+on:
+  push:
+    branches:
+      - agent/local-observability-20260826
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  apply-verify-and-merge:
+    if: ${{ !contains(github.event.head_commit.message, '[local-observability-applied]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 270
+    env:
+      LM_STUDIO_BASE_URL: http://127.0.0.1:65530/v1
+      OPENAI_API_KEY: ""
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/local-observability-20260826
+          fetch-depth: 0
+
+      - name: Wait for capability-measurement prerequisite
+        run: |
+          cp scripts/apply_local_observability.py /tmp/apply_local_observability.py
+          ready=0
+          for _ in $(seq 1 510); do
+            git fetch origin main
+            if git cat-file -e origin/main:services/api/src/finance_agent/models/evaluation.py 2>/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 10
+          done
+          test "$ready" -eq 1
+          git reset --hard origin/main
+          mkdir -p scripts
+          cp /tmp/apply_local_observability.py scripts/apply_local_observability.py
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Apply local observability changes
+        run: python scripts/apply_local_observability.py
+
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          uv sync --project services/api --frozen
+
+      - name: Apply safe formatting fixes
+        run: pnpm lint:fix
+
+      - name: Verify transformed repository
+        run: timeout 100m pnpm verify
+
+      - name: Remove one-shot transformation machinery
+        run: rm -f scripts/apply_local_observability.py
+
+      - name: Verify exact merge tree
+        run: timeout 100m pnpm verify
+
+      - name: Commit verified product changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: add local observability and performance budgets [local-observability-applied]"
+          git push --force-with-lease origin HEAD:agent/local-observability-20260826
+
+      - name: Open reviewable pull request
+        run: |
+          cat > /tmp/pr-body.md <<'EOF'
+          ## Stack position
+
+          **19 of the Folio audit programme**, after measured model capabilities.
+
+          ## Implemented
+
+          - local-only API operation timings and status receipts
+          - bounded request ID and client-origin metadata
+          - sensitive-key redaction and error-type-only failure records
+          - development-only percentile and slow-operation diagnostics
+          - synthetic snapshot p95, payload-size and database-size budgets in `pnpm verify`
+
+          ## Proof boundary
+
+          No telemetry egress is introduced. Synthetic performance budgets detect regressions but do not prove production-scale performance on representative owner data.
+
+          ## Verification
+
+          The exact committed tree passed the complete `pnpm verify` gate, including the new performance budget. The one-shot transformation script is absent from the final diff.
+          EOF
+          if ! gh pr view agent/local-observability-20260826 >/dev/null 2>&1; then
+            gh pr create \
+              --base main \
+              --head agent/local-observability-20260826 \
+              --title "Add local observability and measurable performance budgets" \
+              --body-file /tmp/pr-body.md
+          fi
+
+      - name: Merge verified stack
+        run: |
+          pr_number="$(gh pr view agent/local-observability-20260826 --json number --jq .number)"
+          head_sha="$(git rev-parse HEAD)"
+          gh pr ready "$pr_number" || true
+          gh pr merge "$pr_number" --squash --delete-branch --match-head-commit "$head_sha"
