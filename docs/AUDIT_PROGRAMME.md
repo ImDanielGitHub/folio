@@ -1,39 +1,83 @@
-# Folio audit implementation programme
+# Folio implementation and verification register
 
-The repository audit contains 100 research-backed product and engineering improvements and 100 concrete fixes or build-outs. Folio ships them as dependency-ordered pull requests so every merge has its own proof boundary. A later stack may depend on an earlier merge, but no PR is described as complete until its own CI and review evidence is green.
+Folio's audit is a 200-item programme, not a claim of 200 completed changes.
+PRs containing only transformation scripts or one-shot workflows are staging
+material. They do not establish that the proposed product functionality exists.
+Each delivery below points to a real product diff and its verification boundary.
 
-## Ordered stack
+## Merged foundations
 
-1. **Correctness and security foundation — merged in PR #2.** Request and CSV bounds, safe artifact headers, session authentication, Electron origin and IPC controls, secure production protocol, cross-platform verification, foreign-currency Plaid quarantine, material-source Daily Close identity, real timestamps/counts, per-turn model provenance, and initial workspace-ownership guards.
-2. **Provider and run semantics — merged in PR #55.** Audit items B003, B006–B012, B014, B017, B018, B040, B078, and B079: owner claims/policy/date in the Daily Close state vector, complete Plaid added/modified/removed history, cursor-loop rejection, strict provider payload validation, resolved database paths, truthful environment configuration, synchronous turn status, mutation-origin checks, production route gating, typed provider failures, and regression coverage.
-3a. **Client protocol and failure truth — this pull request.** The reviewable subset of B031–B045 and B053–B057: RFC 9457 failures, typed client errors, bounded GET retry, complete runtime validators, incremental SSE, authenticated event/CSV requests, and explicit fixture selection.
-3b. **Cancellation and concurrency — next.** B013, B015, and the remaining run-lifecycle parts of B031–B045 and B053–B057: persisted cancellation, durable event replay, narrower locks, request IDs, health/readiness, and authoritative idempotency/mode state.
-4. **Model, egress, and evaluation evidence.** B029 and B046–B060: projection privacy scanning, measured capability cards, bounded retries, provider usage metadata, repair accounting, failed-run receipts, egress hashes, and adversarial evaluation sets.
-5. **Storage durability and workspace isolation.** B030 and B091–B099: encryption/key lifecycle, smaller service boundaries, migration checksums, backup/integrity/restore, complete multi-workspace ownership, indexes, retention, export, and legal-hold behaviour.
-6. **Desktop resilience, accessibility, and interaction tests.** B062, B065–B077, B080–B084: user-data storage, window/session recovery, real progress and reconciliation, URL/local-storage validation, WCAG runtime checks, accessible documents, React and Electron end-to-end tests, property tests, coverage gates, and contract mutation tests.
-7. **Supply-chain and release engineering.** B085, B086, B089, B090, and B100: dependency review, Dependabot/CodeQL/SBOM, packaged sidecar lifecycle, signing/notarisation configuration, verified updates, safe environment loading, PID ownership checks, and generated proof receipts.
-8. **Owner finance workflow.** I001–I025: attention brief, evidence ladder, classification/duplicate centres, recurring and receivable intelligence, scenarios/reserves, GST/tax preparation, reconciliation, period close, and multi-business foundations.
-9. **Documents, accounting bridges, and communication.** I026–I045 and I093–I100: document ingestion/quarantine, accountant exports, Xero/MYOB/Peppol seams, authenticated messaging, encrypted backups, privacy controls, release evidence, and longitudinal research evaluation.
-10. **Forecasting, explanations, local-model resilience, and product polish.** I046–I092: uncertainty-aware forecasts, anomaly and merchant intelligence, source-level explanations, model evaluation/degradation, undo/redo history, accessibility, performance, and packaging quality.
+| PR | Delivered area | Boundary |
+| --- | --- | --- |
+| #2 | Initial correctness/security foundation | Earlier foundation; not proof every security issue was resolved |
+| #55 | Provider/run semantics and API controls | Merged source and tests; live provider acceptance remains separate |
+| #56 | Typed protocol, complete snapshot validation, safe read retries and explicit fixture choice | Supersedes staging-only #6; durable cancellation/replay remains separate |
 
-## Proof rules
+## September implementation sequence
 
-- Finance amounts, classification effects, forecasts, evidence, and generated records remain deterministic.
-- Provider changes are append-only. Modifications supersede prior events and removals are tombstones; source history is not rewritten.
-- A green unit test does not prove a packaged runtime, signed release, real provider, or external delivery.
-- Work requiring credentials, accreditation, legal judgement, signing identities, or live-provider acceptance is implemented up to the code/configuration boundary and remains explicitly unverified until that external evidence exists.
+| PR | Delivered area | Verification before merge |
+| --- | --- | --- |
+| #57 | Loaded language-model selection, active context capacity, local token/timeout configuration, final-answer validation | CI 34077608768; 130 Python tests plus full repository gate |
+| #58 | Read-only analytical routing, owner question and retrieved context in local explanations, model explanation after safe read-plan fallback | CI 34078973105; 151 Python tests including restart/context handoff |
+| #59 | Exact cash-period analysis, recorded monthly/category drivers, explicit source coverage and authenticated analysis endpoint | CI 34080078722; 172 Python tests including actual HTTP turn/model wiring |
+| #60 | Authenticated document downloads, bounded digest checks, private viewer copies and main-frame IPC | CI 34081422885; 173 Python tests, 28 desktop tests and real macOS runtime smoke |
 
+The model can interpret checked figures and contextualise the owner's question.
+Arithmetic, transaction selection and financial writes remain controlled code.
+Local mode does not silently call the cloud. Hybrid/cloud context continues to
+pass through the existing projection policy; local history is not silently sent.
 
-## Stack 3: client protocol and failure truth
+### Startup preservation
 
-This stack implements the reviewable protocol subset before cancellable background execution:
+The application composition now refuses automatic demo reset when an existing
+workspace lacks its current snapshot. Regression tests cover an interrupted
+initial close, a lost current-snapshot pointer, all three runtime modes, preserved
+source/history, and healthy/fresh startup. This is prevention of destructive
+bootstrap behaviour, not an automated corruption-repair or backup system.
 
-- RFC 9457 problem details for HTTP, validation and missing-resource failures;
-- typed client errors with safe GET retry policy and bounded backoff;
-- complete workspace snapshot validation rather than surface-only validation;
-- incremental SSE parsing across arbitrary network chunk boundaries;
-- session-authenticated event and CSV requests;
-- honest degraded/offline states with no automatic fixture substitution;
-- pure TypeScript protocol tests included in the desktop verification gate.
+The guard is in the canonical `create_app` composition. The legacy fixture-oriented
+base service is not a supported alternate application entry point. Explicit demo
+reset remains a separate destructive development action; it is not a recovery
+procedure for valuable records.
 
-Persistent event replay and committed cancellation receipts remain in the next stack because they change the run lifecycle and storage authority together.
+## Native proof
+
+The macOS CI job launches the real Electron entry point against a disposable
+synthetic local API. Its receipt records `app://folio/index.html`, the Electron
+preload bridge, unavailable renderer `require`, authenticated snapshot status 200
+and successful PDF-opening IPC. The corresponding screenshot was inspected.
+
+This proves that tested runtime path on the CI Mac. It does not prove a signed or
+notarised installer, every UI interaction, Daniel's personal Mac, real-model
+financial judgement, a real bank connection or an external delivery.
+
+## Queue cleanup
+
+Staging-only #6 was closed as superseded by merged #56. Duplicate Telegram draft
+#29 was closed in favour of the corrected continuation #31. Their branches are
+preserved. Closing a duplicate does not count as implementing its proposal.
+
+Other staging drafts remain unmerged until their actual changes can be applied
+against current main, reviewed and tested. Do not merge apply-script workflows
+just to reduce the open-PR count. The source-export helper stays on its auxiliary
+branch and is not part of the application or main's release workflow.
+
+## Remaining workstreams, not delivered claims
+
+| Workstream | Outstanding acceptance |
+| --- | --- |
+| Durable runs and cancellation | Persisted lifecycle/events, cancel checkpoints, safe retries and authoritative client reconciliation |
+| Context and model quality | Actual token budgets, retrieval quality, measured capability tiers, adversarial tests and live local-model evaluation |
+| Financial analysis | Explicit chat date/account filters, complete-period reconciliation, richer scenarios, concentration/recurrence analysis and user-facing analysis surfaces |
+| Data protection | Encrypted storage and key lifecycle, verified backup/restore, migration failure recovery and complete workspace isolation |
+| Product and accessibility | Actual key UI flows, keyboard/screen-reader tests, truthful progress and error recovery, document accessibility |
+| Connectors and accounting | Real Akahu lifecycle, authenticated messaging, document ingestion and accountant/Xero/MYOB handoff with provider acceptance |
+| Release engineering | Packaged sidecar lifecycle, installers, signing/notarisation, authenticated updates and release acceptance |
+
+## Review rules
+
+A merge requires the intended product diff, fresh passing checks and a pinned
+expected head SHA. A test count is not an audit-item completion count. Native
+runtime, model behaviour, external-system acceptance and released state remain
+separate evidence levels. Preserve source records and unfinished branches. Never
+replace missing financial data with reassuring demo results.
