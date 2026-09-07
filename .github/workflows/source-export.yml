@@ -2,37 +2,47 @@ name: Source Export
 
 on:
   push:
-    branches:
-      - agent/source-export-20260826
+    branches: [agent/source-export-20260826]
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   export:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
     steps:
-      - name: Check out current main
+      - name: Check out pinned current main without retained credentials
         uses: actions/checkout@v4
         with:
-          ref: main
-          fetch-depth: 1
-
-      - name: Create source archive
+          ref: f9d48cbea3640ab371522129d7c6eda5e66d7e18
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Export Git history and review inventory
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          tar \
-            --exclude=.git \
-            --exclude=node_modules \
-            --exclude=services/api/.venv \
-            -czf /tmp/folio-main-after-pr2.tar.gz .
-
-      - name: Upload source archive
+          mkdir -p /tmp/folio-offline
+          git bundle create /tmp/folio-offline/folio.bundle --all
+          gh api --paginate 'repos/ImDanielGitHub/folio/pulls?state=all&per_page=100' --jq '[.[] | {number,title,state,draft,merged_at,base:.base.ref,base_sha:.base.sha,head:.head.ref,head_sha:.head.sha,body}]' > /tmp/folio-offline/pull-requests.json
+          git rev-parse HEAD > /tmp/folio-offline/main.sha
+      - name: Install Node test dependencies
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Export dependency files for offline checks
+        run: |
+          npm install --global pnpm@10.33.0
+          pnpm install --frozen-lockfile
+          tar -czf /tmp/folio-offline/node-deps.tar.gz node_modules apps/desktop/node_modules
+          python -m pip download --only-binary=:all: --dest /tmp/folio-offline/wheels ruff mypy --python-version 3.13
+      - name: Upload offline review inputs
         uses: actions/upload-artifact@v4
         with:
-          name: folio-main-after-pr2
-          path: /tmp/folio-main-after-pr2.tar.gz
+          name: folio-offline-review-20260907
+          path: /tmp/folio-offline/
           if-no-files-found: error
-          retention-days: 1
-
-# Refresh marker: current main after audit programme foundation
+          retention-days: 2
