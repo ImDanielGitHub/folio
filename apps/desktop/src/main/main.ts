@@ -11,6 +11,8 @@ import {
 import { readFile, stat } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
+import { downloadArtifact } from "../artifact.js";
+import { cacheArtifact } from "./artifact-cache.js";
 import { isTrustedRendererUrl, isValidArtifactId, MAX_CSV_BYTES } from "./security.js";
 
 protocol.registerSchemesAsPrivileged([
@@ -59,16 +61,7 @@ async function createWindow(): Promise<void> {
   });
 
   window.once("ready-to-show", () => window.show());
-  window.webContents.setWindowOpenHandler(({ url }) => {
-    const parsed = new URL(url);
-    if (
-      parsed.origin === apiBase
-      && /^\/v1\/artifacts\/[a-z][a-z0-9]{1,15}_[a-z0-9][a-z0-9_]{2,95}$/.test(parsed.pathname)
-    ) {
-      void shell.openExternal(url);
-    }
-    return { action: "deny" };
-  });
+  window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.webContents.on("will-navigate", (event, url) => {
     if (!isTrustedRendererUrl(url, rendererUrl())) event.preventDefault();
   });
@@ -84,7 +77,7 @@ async function createWindow(): Promise<void> {
 
 ipcMain.handle("finance:pick-csv", async (event) => {
   const senderUrl = event.senderFrame?.url;
-  if (!senderUrl) {
+  if (!senderUrl || event.senderFrame !== event.sender.mainFrame) {
     throw new Error("Rejected privileged IPC without a sender frame");
   }
   assertTrustedSender(senderUrl);
@@ -108,12 +101,19 @@ ipcMain.handle("finance:pick-csv", async (event) => {
 
 ipcMain.handle("finance:open-artifact", async (event, artifactId: unknown) => {
   const senderUrl = event.senderFrame?.url;
-  if (!senderUrl) {
+  if (!senderUrl || event.senderFrame !== event.sender.mainFrame) {
     throw new Error("Rejected privileged IPC without a sender frame");
   }
   assertTrustedSender(senderUrl);
   if (!isValidArtifactId(artifactId)) return false;
-  await shell.openExternal(`${apiBase}/v1/artifacts/${artifactId}`);
+  const artifact = await downloadArtifact(artifactId, apiBase, process.env.FOLIO_SESSION_TOKEN);
+  const path = await cacheArtifact(app.getPath("temp"), artifactId, artifact);
+  if (artifact.extension === "html") {
+    shell.showItemInFolder(path);
+  } else {
+    const error = await shell.openPath(path);
+    if (error) throw new Error("The system PDF viewer could not open this artefact");
+  }
   return true;
 });
 

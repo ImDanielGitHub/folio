@@ -1,3 +1,4 @@
+import { downloadArtifact, isValidArtifactId } from "./artifact";
 import { validateRunEvent, validateWorkspaceSnapshot, type RunEvent, type WorkspaceSnapshot } from "./types";
 import { ApiProblem, SseDecoder, apiProblemFromResponse, retryDelayMs, shouldRetryRequest } from "./protocol";
 
@@ -368,12 +369,23 @@ export async function importCsv(file: File): Promise<Record<string, unknown>> {
 }
 
 export async function openArtifact(artifactId: string): Promise<void> {
-  if (!/^[a-z][a-z0-9_]{2,95}$/.test(artifactId)) throw new Error("Invalid artifact identifier");
+  if (!isValidArtifactId(artifactId)) throw new Error("Invalid artefact identifier");
   if (window.financeDesktop) {
-    await window.financeDesktop.openArtifact(artifactId);
+    if (!await window.financeDesktop.openArtifact(artifactId)) {
+      throw new Error("The desktop could not open this artefact");
+    }
     return;
   }
-  window.open(`${API_URL}/v1/artifacts/${artifactId}`, "_blank", "noopener,noreferrer");
+  const artifact = await downloadArtifact(artifactId, API_URL, SESSION_TOKEN);
+  const url = URL.createObjectURL(new Blob([artifact.bytes], { type: artifact.mediaType }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${artifactId}.${artifact.extension}`;
+  document.body.append(link);
+  try { link.click(); } finally {
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
 }
 
 export { API_URL };
