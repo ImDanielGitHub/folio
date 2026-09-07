@@ -6,43 +6,27 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
 
 jobs:
   export:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+    timeout-minutes: 5
     steps:
-      - name: Check out pinned current main without retained credentials
+      - name: Check out verified merged main
         uses: actions/checkout@v4
         with:
-          ref: f9d48cbea3640ab371522129d7c6eda5e66d7e18
+          ref: 95eded3a37d3f2d25d47254da348db0182d08695
           fetch-depth: 0
           persist-credentials: false
-      - name: Export Git history and review inventory
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Export tracked Git objects only
         run: |
-          mkdir -p /tmp/folio-offline
-          git bundle create /tmp/folio-offline/folio.bundle --all
-          gh api --paginate 'repos/ImDanielGitHub/folio/pulls?state=all&per_page=100' --jq '[.[] | {number,title,state,draft,merged_at,base:.base.ref,base_sha:.base.sha,head:.head.ref,head_sha:.head.sha,body}]' > /tmp/folio-offline/pull-requests.json
-          git rev-parse HEAD > /tmp/folio-offline/main.sha
-      - name: Install Node test dependencies
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Export dependency files for offline checks
-        run: |
-          npm install --global pnpm@10.33.0
-          pnpm install --frozen-lockfile
-          tar -czf /tmp/folio-offline/node-deps.tar.gz node_modules apps/desktop/node_modules
-          python -m pip download --only-binary=:all: --dest /tmp/folio-offline/wheels ruff mypy --python-version 3.13
-      - name: Upload offline review inputs
+          mkdir -p /tmp/folio-git
+          git bundle create /tmp/folio-git/folio.bundle --all
+          git rev-parse HEAD > /tmp/folio-git/main.sha
+      - name: Upload offline Git bundle
         uses: actions/upload-artifact@v4
         with:
-          name: folio-offline-review-20260907
-          path: /tmp/folio-offline/
+          name: folio-git-after-pr57
+          path: /tmp/folio-git/
           if-no-files-found: error
           retention-days: 2
