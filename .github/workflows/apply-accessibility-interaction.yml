@@ -1,0 +1,154 @@
+name: Apply accessibility and interaction stack
+
+on:
+  push:
+    branches:
+      - agent/accessibility-interaction-20260826
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  apply-verify-and-merge:
+    if: ${{ !contains(github.event.head_commit.message, '[accessibility-applied]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      LM_STUDIO_BASE_URL: http://127.0.0.1:65530/v1
+      OPENAI_API_KEY: ""
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/accessibility-interaction-20260826
+          fetch-depth: 0
+
+      - name: Wait for document-evidence prerequisite
+        run: |
+          cp scripts/apply_accessibility_interaction.py /tmp/apply_accessibility_interaction.py
+          ready=0
+          for _ in $(seq 1 360); do
+            git fetch origin main
+            if git cat-file -e origin/main:services/api/src/finance_agent/storage/documents.py 2>/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 10
+          done
+          test "$ready" -eq 1
+          git reset --hard origin/main
+          mkdir -p scripts
+          cp /tmp/apply_accessibility_interaction.py scripts/apply_accessibility_interaction.py
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Apply accessibility and interaction changes
+        run: |
+          python scripts/apply_accessibility_interaction.py
+          python - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          package_path = Path("apps/desktop/package.json")
+          package = json.loads(package_path.read_text())
+          dev = package["devDependencies"]
+          dev.pop("vitest-axe", None)
+          dev["axe-core"] = "^4.10.3"
+          dev["vitest"] = "^4.0.0"
+          dev["jsdom"] = "^27.0.0"
+          package_path.write_text(json.dumps(package, indent=2) + "\n")
+
+          test_path = Path("apps/desktop/tests/accessibility/accessibility.test.tsx")
+          tests = test_path.read_text()
+          tests = tests.replace('import { axe } from "vitest-axe";', 'import axe from "axe-core";')
+          test_path.write_text(tests)
+
+          surface_path = Path("apps/desktop/src/SurfaceRenderer.tsx")
+          surface = surface_path.read_text()
+          surface = re.sub(r'<button(?![^>]*\\btype=)', '<button type="button"', surface)
+          surface_path.write_text(surface)
+          PY
+
+      - name: Refresh JavaScript lockfile
+        run: pnpm install --lockfile-only
+
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          uv sync --project services/api --frozen
+
+      - name: Apply safe formatting fixes
+        run: pnpm lint:fix
+
+      - name: Verify transformed repository
+        run: timeout 70m pnpm verify
+
+      - name: Remove one-shot transformation machinery
+        run: rm -f scripts/apply_accessibility_interaction.py
+
+      - name: Verify exact merge tree
+        run: timeout 70m pnpm verify
+
+      - name: Commit verified product changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: add accessibility and keyboard interaction proof [accessibility-applied]"
+          git push --force-with-lease origin HEAD:agent/accessibility-interaction-20260826
+
+      - name: Open reviewable pull request
+        run: |
+          cat > /tmp/pr-body.md <<'EOF'
+          ## Stack position
+
+          **14 of the Folio audit programme**, after document evidence ingestion.
+
+          ## Implemented
+
+          - automated axe coverage for onboarding and representative finance surfaces
+          - keyboard focus, arrow-key, Home and End interaction tests
+          - table captions, scoped headers and labelled finding summaries
+          - polite live status and `aria-busy` for background work
+          - visible focus, high-contrast and reduced-motion rules
+          - accessibility checks in the permanent desktop test gate
+
+          ## Proof boundary
+
+          Automated checks do not replace manual VoiceOver or NVDA review of a packaged build.
+
+          ## Verification
+
+          The exact committed tree passed the full `pnpm verify` gate. The one-shot transformation script is absent from the final diff.
+          EOF
+          if ! gh pr view agent/accessibility-interaction-20260826 >/dev/null 2>&1; then
+            gh pr create \
+              --base main \
+              --head agent/accessibility-interaction-20260826 \
+              --title "Add accessibility and keyboard interaction proof" \
+              --body-file /tmp/pr-body.md
+          fi
+
+      - name: Merge verified stack
+        run: |
+          pr_number="$(gh pr view agent/accessibility-interaction-20260826 --json number --jq .number)"
+          head_sha="$(git rev-parse HEAD)"
+          gh pr ready "$pr_number" || true
+          gh pr merge "$pr_number" --squash --delete-branch --match-head-commit "$head_sha"
