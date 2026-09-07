@@ -237,9 +237,9 @@ class FinanceAgentController:
                 plan=plan,
                 execution=execution,
             )
-            # Prefer evidence-backed wording for writes and deterministic_fallback —
-            # judges must see what changed, not a generic acknowledgement.
-            if outcome.source == "deterministic_fallback" or has_committed_write:
+            # Committed writes retain deterministic receipts. A safe read plan
+            # can still get a useful model explanation after schema repair fails.
+            if has_committed_write:
                 narrative = deterministic_narrative
                 narrative_receipt = None
                 narrative_egress = None
@@ -254,6 +254,8 @@ class FinanceAgentController:
                     mode=request.mode,
                     source=dict(refreshed.projection),
                     fallback_text=deterministic_narrative,
+                    owner_question=request.content,
+                    context_packet=context_packet,
                 )
                 narrative = narrative_outcome.text
                 narrative_receipt = narrative_outcome.model_receipt

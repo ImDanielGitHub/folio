@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import json
-import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from enum import StrEnum
 from typing import Protocol
+
+from finance_agent.agent.question_context import is_stop_command
 
 
 class ClaimBasis(StrEnum):
@@ -301,13 +302,8 @@ class ContextAssembler:
 class InquiryPolicy:
     """One adaptive question at a time, with graceful stop/topic changes."""
 
-    _STOP_RE = re.compile(
-        r"\b(stop|pause|leave it there|that(?:'s| is) enough|done for now|synthesi[sz]e)\b",
-        re.IGNORECASE,
-    )
-
     def is_stop(self, content: str) -> bool:
-        return bool(self._STOP_RE.search(content))
+        return is_stop_command(content)
 
     def acknowledge(self, content: str) -> str:
         if self.is_stop(content):
