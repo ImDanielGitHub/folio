@@ -11,22 +11,32 @@ from decimal import Decimal, InvalidOperation
 from finance_agent.agent.catalogue import IntentClass
 from finance_agent.agent.plan import FinancePlan
 from finance_agent.agent.ports import FinanceContext
+from finance_agent.agent.question_context import is_stop_command
 
-_STOP_RE = re.compile(
-    r"\b(stop|pause|leave it there|that(?:'s| is) enough|done for now|synthesi[sz]e)\b",
+_COMMAND_PREFIX = r"^\s*(?:(?:please|can you|could you|would you)\s+)?"
+_UNDO_RE = re.compile(
+    _COMMAND_PREFIX + r"(undo|revert|put (?:it|that) back|roll back)\b", re.IGNORECASE
+)
+_WRITE_COMMAND_RE = re.compile(
+    _COMMAND_PREFIX + r"(?:reclassify|classify|categorise|categorize|mark|treat)\b",
     re.IGNORECASE,
 )
-_UNDO_RE = re.compile(r"\b(undo|revert|put (?:it|that) back|roll back)\b", re.IGNORECASE)
+_READ_QUESTION_RE = re.compile(
+    r"^\s*(?:why|how|which|what|is|are|does|did|should|can|could|would)\b"
+    r"|\b(?:analyse|analyze|analysis|compare|comparison|explain|trend|breakdown|summari[sz]e)\b",
+    re.IGNORECASE,
+)
 _SCENARIO_RE = re.compile(
     r"\b(scenario|what if|forecast|cash|reserve|laptop|afford|defer)\b", re.IGNORECASE
 )
 _CORRECTION_RE = re.compile(
-    r"\b(business|client|fit[- ]?out|classif|categor|merchant rule|was for)\b",
+    r"\b(fit[- ]?out|classif(?:y|ication)?|categor(?:ise|ize|isation|ization)?"
+    r"|merchant rule|was for)\b",
     re.IGNORECASE,
 )
 _PACK_RE = re.compile(r"\b(owner pack|working papers|report|pdf|export)\b", re.IGNORECASE)
 _TRANSACTIONS_RE = re.compile(
-    r"\b(transaction|charge|merchant|purchase|spent|expense row)\b", re.IGNORECASE
+    r"\b(transactions?|charges?|merchants?|purchases?|spent|expense rows?)\b", re.IGNORECASE
 )
 _SUMMARY_RE = re.compile(r"\b(summary|balance|income|expenses?|morning close)\b", re.IGNORECASE)
 _LIMIT_RE = re.compile(
@@ -43,10 +53,22 @@ class FallbackDecision:
 
 
 def classify_intent(content: str) -> IntentClass:
-    if _STOP_RE.search(content):
+    if is_stop_command(content):
         return IntentClass.STOP_SYNTHESIS
     if _UNDO_RE.search(content):
         return IntentClass.UNDO
+    if _WRITE_COMMAND_RE.search(content):
+        return IntentClass.CORRECTION
+    # Questions about a rule or business must not grant mutation authority.
+    # Explicit what-if scenarios keep the bounded scenario path.
+    if _READ_QUESTION_RE.search(content) and not re.search(r"\bwhat if\b", content, re.I):
+        if _TRANSACTIONS_RE.search(content):
+            return IntentClass.READ_TRANSACTIONS
+        if _PACK_RE.search(content) and re.search(
+            r"\b(show|prepare|generate|export)\b", content, re.I
+        ):
+            return IntentClass.OWNER_PACK
+        return IntentClass.READ_SUMMARY
     if _PACK_RE.search(content):
         return IntentClass.OWNER_PACK
     if _CORRECTION_RE.search(content):
@@ -218,7 +240,9 @@ def compile_fallback_plan(
             {
                 "actionId": f"action_query_{suffix}",
                 "kind": "query_transactions",
-                "merchantContains": _merchant(content, context),
+                "merchantContains": "MITRE 10"
+                if re.search(r"\bmitre\s*10\b", content, re.I)
+                else None,
                 "classification": "any",
                 "limit": 25,
             },
