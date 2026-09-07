@@ -1,0 +1,125 @@
+name: Apply document evidence ingestion stack
+
+on:
+  push:
+    branches:
+      - agent/document-evidence-ingestion-20260826
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  apply-verify-and-merge:
+    if: ${{ !contains(github.event.head_commit.message, '[document-evidence-applied]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 165
+    env:
+      LM_STUDIO_BASE_URL: http://127.0.0.1:65530/v1
+      OPENAI_API_KEY: ""
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/document-evidence-ingestion-20260826
+          fetch-depth: 0
+
+      - name: Wait for NZ GST prerequisite
+        run: |
+          cp scripts/apply_document_evidence_ingestion.py /tmp/apply_document_evidence_ingestion.py
+          ready=0
+          for _ in $(seq 1 330); do
+            git fetch origin main
+            if git cat-file -e origin/main:services/api/src/finance_agent/finance/accounting.py 2>/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 10
+          done
+          test "$ready" -eq 1
+          git reset --hard origin/main
+          mkdir -p scripts
+          cp /tmp/apply_document_evidence_ingestion.py scripts/apply_document_evidence_ingestion.py
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Apply document evidence ingestion changes
+        run: python scripts/apply_document_evidence_ingestion.py
+
+      - name: Refresh Python lockfile
+        run: uv lock --project services/api
+
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          uv sync --project services/api --frozen
+
+      - name: Apply safe formatting fixes
+        run: pnpm lint:fix
+
+      - name: Verify transformed repository
+        run: timeout 65m pnpm verify
+
+      - name: Remove one-shot transformation machinery
+        run: rm -f scripts/apply_document_evidence_ingestion.py
+
+      - name: Verify exact merge tree
+        run: timeout 65m pnpm verify
+
+      - name: Commit verified product changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: add bounded document evidence ingestion [document-evidence-applied]"
+          git push --force-with-lease origin HEAD:agent/document-evidence-ingestion-20260826
+
+      - name: Open reviewable pull request
+        run: |
+          cat > /tmp/pr-body.md <<'EOF'
+          ## Stack position
+
+          **13 of the Folio audit programme**, after NZ GST working papers.
+
+          ## Implemented
+
+          - bounded local PDF, DOCX, HTML, Markdown and UTF-8 text ingestion
+          - immutable source bytes, SHA-256, extraction metadata and evidence IDs
+          - idempotent duplicate handling
+          - provenance-backed knowledge-index integration
+          - encrypted PDF, Office macro, unsupported format and empty-text rejection
+          - no HTML execution and no OCR claim
+
+          ## Verification
+
+          The exact committed tree passed the full `pnpm verify` gate. The one-shot transformation script is absent from the final diff.
+          EOF
+          if ! gh pr view agent/document-evidence-ingestion-20260826 >/dev/null 2>&1; then
+            gh pr create \
+              --base main \
+              --head agent/document-evidence-ingestion-20260826 \
+              --title "Add bounded local document evidence ingestion" \
+              --body-file /tmp/pr-body.md
+          fi
+
+      - name: Merge verified stack
+        run: |
+          pr_number="$(gh pr view agent/document-evidence-ingestion-20260826 --json number --jq .number)"
+          head_sha="$(git rev-parse HEAD)"
+          gh pr ready "$pr_number" || true
+          gh pr merge "$pr_number" --squash --delete-branch --match-head-commit "$head_sha"
