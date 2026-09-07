@@ -70,7 +70,7 @@ async def test_capability_matches_loaded_identifier_and_dictionary_tool_flag() -
     assert card.model == "folio-qwen3.5-9b"
     assert card.structured_output is True
     assert card.tool_use is True
-    assert card.context_length == 262144
+    assert card.context_length == 32768
     assert card.tier_measured is False
 
 
