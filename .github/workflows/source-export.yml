@@ -15,7 +15,7 @@ jobs:
       - name: Check out verified merged main
         uses: actions/checkout@v4
         with:
-          ref: 95eded3a37d3f2d25d47254da348db0182d08695
+          ref: 26e4439c3f17565b20334c576c8c9e5e4bae031d
           fetch-depth: 0
           persist-credentials: false
       - name: Export tracked Git objects only
@@ -26,7 +26,7 @@ jobs:
       - name: Upload offline Git bundle
         uses: actions/upload-artifact@v4
         with:
-          name: folio-git-after-pr57
+          name: folio-git-after-pr58
           path: /tmp/folio-git/
           if-no-files-found: error
           retention-days: 2
