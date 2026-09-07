@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Path, Request
 from finance_agent.agent.ports import FinanceContext
 from finance_agent.api.http_security import IDENTIFIER_PATTERN
 from finance_agent.api.services import FinanceCoreAdapter, LocalRouteServices
+from finance_agent.finance import FinanceStateError
 from finance_agent.finance.analysis import analysis_projection, load_cash_analysis
 
 
@@ -47,6 +48,19 @@ class AnalysisFinanceCore(FinanceCoreAdapter):
 
 
 class AnalysisRouteServices(LocalRouteServices):
+    def _ensure_seeded(self) -> None:
+        # A missing derived snapshot is not permission to erase source records.
+        # The legacy demo bootstrap is allowed only for a genuinely empty store.
+        try:
+            self.engine.get_snapshot()
+        except FinanceStateError as exc:
+            if self.store.fetch_one("SELECT 1 FROM workspaces LIMIT 1") is not None:
+                raise FinanceStateError(
+                    "Existing workspace needs snapshot recovery. Automatic demo reset was "
+                    "refused; preserve the database and recover its committed view explicitly."
+                ) from exc
+        super()._ensure_seeded()
+
     def _compose_controller(self) -> None:
         self.finance_core = AnalysisFinanceCore(self.engine)
         super()._compose_controller()
