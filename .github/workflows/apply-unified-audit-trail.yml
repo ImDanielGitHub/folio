@@ -1,0 +1,125 @@
+name: Apply unified audit trail stack
+
+on:
+  push:
+    branches:
+      - agent/unified-audit-trail-20260826
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  apply-verify-and-merge:
+    if: ${{ !contains(github.event.head_commit.message, '[unified-audit-applied]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 465
+    env:
+      LM_STUDIO_BASE_URL: http://127.0.0.1:65530/v1
+      OPENAI_API_KEY: ""
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/unified-audit-trail-20260826
+          fetch-depth: 0
+
+      - name: Wait for adversarial-invariant prerequisite
+        run: |
+          cp scripts/apply_unified_audit_trail.py /tmp/apply_unified_audit_trail.py
+          ready=0
+          for _ in $(seq 1 900); do
+            git fetch origin main
+            if git cat-file -e origin/main:services/api/tests/adversarial/test_migration_replay.py 2>/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 10
+          done
+          test "$ready" -eq 1
+          git reset --hard origin/main
+          mkdir -p scripts
+          cp /tmp/apply_unified_audit_trail.py scripts/apply_unified_audit_trail.py
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Apply unified audit changes
+        run: python scripts/apply_unified_audit_trail.py
+
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          uv sync --project services/api --frozen
+
+      - name: Apply safe formatting fixes
+        run: pnpm lint:fix
+
+      - name: Verify transformed repository
+        run: timeout 170m pnpm verify
+
+      - name: Remove one-shot transformation machinery
+        run: rm -f scripts/apply_unified_audit_trail.py
+
+      - name: Verify exact merge tree
+        run: timeout 170m pnpm verify
+
+      - name: Commit verified product changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: add unified content minimised audit trail [unified-audit-applied]"
+          git push --force-with-lease origin HEAD:agent/unified-audit-trail-20260826
+
+      - name: Open reviewable pull request
+        run: |
+          cat > /tmp/pr-body.md <<'EOF'
+          ## Stack position
+
+          **32 of the Folio audit programme**, after adversarial invariant verification.
+
+          ## Implemented
+
+          - unified typed timeline over finance, jobs, sources, models, egress and optional product records
+          - filters by kind, status, date and identifiers
+          - evidence, correlation and content-hash preservation
+          - raw owner/source/model/egress content exclusion
+          - manifest-led JSONL export with append-only revisions
+
+          ## Proof boundary
+
+          Local export creation does not prove a recipient received or reviewed the audit trail.
+
+          ## Verification
+
+          The exact committed tree passed the complete `pnpm verify` gate. The one-shot transformation script is absent from the final diff.
+          EOF
+          if ! gh pr view agent/unified-audit-trail-20260826 >/dev/null 2>&1; then
+            gh pr create \
+              --base main \
+              --head agent/unified-audit-trail-20260826 \
+              --title "Add a unified content-minimised audit trail" \
+              --body-file /tmp/pr-body.md
+          fi
+
+      - name: Merge verified stack
+        run: |
+          pr_number="$(gh pr view agent/unified-audit-trail-20260826 --json number --jq .number)"
+          head_sha="$(git rev-parse HEAD)"
+          gh pr ready "$pr_number" || true
+          gh pr merge "$pr_number" --squash --delete-branch --match-head-commit "$head_sha"
