@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
+from finance_agent.api.analysis_services import AnalysisRouteServices, create_analysis_router
 from finance_agent.api.http_security import (
     MAX_REQUEST_BODY_BYTES,
     OriginGuardMiddleware,
@@ -20,7 +21,6 @@ from finance_agent.api.http_security import (
 )
 from finance_agent.api.problems import install_problem_handlers
 from finance_agent.api.routes import create_router
-from finance_agent.api.services import LocalRouteServices
 
 ROOT = Path(__file__).resolve().parents[5]
 DEFAULT_DATABASE = ROOT / "var" / "finance-agent.sqlite3"
@@ -70,7 +70,7 @@ def create_app(
         if database_path is not None
         else configured_database_path()
     )
-    services = LocalRouteServices(selected_database, auto_seed=auto_seed)
+    services = AnalysisRouteServices(selected_database, auto_seed=auto_seed)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -114,6 +114,7 @@ def create_app(
             enable_diagnostics=expose_development_routes,
         )
     )
+    value.include_router(create_analysis_router())
     value.state.finance_route_services = services
     value.state.folio_runtime_mode = selected_mode
     return value
