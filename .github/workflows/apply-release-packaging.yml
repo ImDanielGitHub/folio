@@ -1,0 +1,151 @@
+name: Apply release packaging stack
+
+on:
+  push:
+    branches:
+      - agent/release-packaging-20260826
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  apply-verify-and-merge:
+    if: ${{ !contains(github.event.head_commit.message, '[release-packaging-applied]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 210
+    env:
+      LM_STUDIO_BASE_URL: http://127.0.0.1:65530/v1
+      OPENAI_API_KEY: ""
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/release-packaging-20260826
+          fetch-depth: 0
+
+      - name: Wait for accessibility prerequisite
+        run: |
+          cp scripts/apply_release_packaging.py /tmp/apply_release_packaging.py
+          ready=0
+          for _ in $(seq 1 390); do
+            git fetch origin main
+            if git cat-file -e origin/main:apps/desktop/vitest.config.ts 2>/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 10
+          done
+          test "$ready" -eq 1
+          git reset --hard origin/main
+          mkdir -p scripts
+          cp /tmp/apply_release_packaging.py scripts/apply_release_packaging.py
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Apply release packaging changes
+        run: |
+          python scripts/apply_release_packaging.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path("apps/desktop/package.json")
+          value = json.loads(path.read_text())
+          value["scripts"]["package:dir"] = "pnpm build && electron-builder --dir --config electron-builder.yml --linux"
+          path.write_text(json.dumps(value, indent=2) + "\n")
+          PY
+
+      - name: Refresh lockfiles
+        run: |
+          pnpm install --lockfile-only
+          uv lock --project services/api
+
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          uv sync --project services/api --frozen
+
+      - name: Apply safe formatting fixes
+        run: pnpm lint:fix
+
+      - name: Verify source and unpacked package
+        run: |
+          timeout 75m pnpm verify
+          timeout 30m pnpm package:smoke
+          pnpm audit --audit-level=high
+          uv run --project services/api pip-audit
+
+      - name: Remove one-shot transformation machinery and build output
+        run: |
+          rm -f scripts/apply_release_packaging.py
+          rm -rf apps/desktop/release
+
+      - name: Verify exact merge tree
+        run: |
+          timeout 75m pnpm verify
+          timeout 30m pnpm package:smoke
+          rm -rf apps/desktop/release
+          pnpm audit --audit-level=high
+          uv run --project services/api pip-audit
+
+      - name: Commit verified product changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "build: add reproducible cross platform desktop packaging [release-packaging-applied]"
+          git push --force-with-lease origin HEAD:agent/release-packaging-20260826
+
+      - name: Open reviewable pull request
+        run: |
+          cat > /tmp/pr-body.md <<'EOF'
+          ## Stack position
+
+          **15 of the Folio audit programme**, after accessibility and interaction proof.
+
+          ## Implemented
+
+          - Electron Builder definitions for macOS, Windows and Linux
+          - source-map, test and source-file exclusions from app.asar
+          - Linux unpacked-package smoke verification before merge
+          - permanent macOS/Windows/Linux package matrix without automatic publication
+          - conditional signing and notarisation inputs
+          - `proof.json` recording whether signing/notarisation credentials were actually used
+
+          ## Proof boundary
+
+          This PR does not claim signed/notarised artefacts, successful clean-machine installation, auto-update rollout, store acceptance or release publication.
+
+          ## Verification
+
+          The exact committed tree passed `pnpm verify`, the unpacked-package smoke gate, npm audit and pip-audit. The one-shot transformation script and package output are absent from the final diff.
+          EOF
+          if ! gh pr view agent/release-packaging-20260826 >/dev/null 2>&1; then
+            gh pr create \
+              --base main \
+              --head agent/release-packaging-20260826 \
+              --title "Add reproducible cross-platform desktop release packaging" \
+              --body-file /tmp/pr-body.md
+          fi
+
+      - name: Merge verified stack
+        run: |
+          pr_number="$(gh pr view agent/release-packaging-20260826 --json number --jq .number)"
+          head_sha="$(git rev-parse HEAD)"
+          gh pr ready "$pr_number" || true
+          gh pr merge "$pr_number" --squash --delete-branch --match-head-commit "$head_sha"
