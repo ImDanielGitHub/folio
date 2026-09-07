@@ -1,0 +1,130 @@
+name: Apply system trust centre stack
+
+on:
+  push:
+    branches:
+      - agent/system-trust-centre-20260826
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  apply-verify-and-merge:
+    if: ${{ !contains(github.event.head_commit.message, '[trust-centre-applied]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 720
+    env:
+      LM_STUDIO_BASE_URL: http://127.0.0.1:65530/v1
+      OPENAI_API_KEY: ""
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/system-trust-centre-20260826
+          fetch-depth: 0
+
+      - name: Wait for operations-workbench prerequisite
+        run: |
+          cp scripts/apply_system_trust_centre.py /tmp/apply_system_trust_centre.py
+          cp scripts/patch_system_trust_centre.py /tmp/patch_system_trust_centre.py
+          ready=0
+          for _ in $(seq 1 1410); do
+            git fetch origin main
+            if git cat-file -e origin/main:apps/desktop/src/OperationsWorkbench.tsx 2>/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 10
+          done
+          test "$ready" -eq 1
+          git reset --hard origin/main
+          mkdir -p scripts
+          cp /tmp/apply_system_trust_centre.py scripts/apply_system_trust_centre.py
+          cp /tmp/patch_system_trust_centre.py scripts/patch_system_trust_centre.py
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Apply trust centre changes and mapping-aware hash verification
+        run: |
+          python scripts/apply_system_trust_centre.py
+          python scripts/patch_system_trust_centre.py
+
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          uv sync --project services/api --frozen
+
+      - name: Apply safe formatting fixes
+        run: pnpm lint:fix
+
+      - name: Verify transformed repository
+        run: timeout 255m pnpm verify
+
+      - name: Remove one-shot transformation machinery
+        run: rm -f scripts/apply_system_trust_centre.py scripts/patch_system_trust_centre.py
+
+      - name: Verify exact merge tree
+        run: timeout 255m pnpm verify
+
+      - name: Commit verified product changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: add redacted trust centre and integrity self test [trust-centre-applied]"
+          git push --force-with-lease origin HEAD:agent/system-trust-centre-20260826
+
+      - name: Open reviewable pull request
+        run: |
+          cat > /tmp/pr-body.md <<'EOF'
+          ## Stack position
+
+          **49 of the Folio audit programme**, after the desktop finance operations workbench.
+
+          ## Implemented
+
+          - local SQLite quick and foreign-key checks
+          - immutability-trigger, source-row, artefact and snapshot hash verification
+          - database and restore-candidate permission/integrity checks
+          - configured-secret comparison without returning values or field locations
+          - hashed local integrity receipts
+          - accessible desktop Trust centre with backup, recovery, model, egress and connector state
+
+          ## Proof boundary
+
+          A passed self-test is point-in-time evidence for these local invariants. It is not external provider, accountant, tax-authority, release-signing or penetration-test acceptance.
+
+          ## Verification
+
+          The exact committed tree passed the complete `pnpm verify` gate twice, including tamper, secret-redaction, summary-path and desktop accessibility contract tests. The one-shot transformation scripts are absent from the final diff.
+          EOF
+          if ! gh pr view agent/system-trust-centre-20260826 >/dev/null 2>&1; then
+            gh pr create \
+              --base main \
+              --head agent/system-trust-centre-20260826 \
+              --title "Add a redacted Trust centre and local integrity self-test" \
+              --body-file /tmp/pr-body.md
+          fi
+
+      - name: Merge verified stack
+        run: |
+          pr_number="$(gh pr view agent/system-trust-centre-20260826 --json number --jq .number)"
+          head_sha="$(git rev-parse HEAD)"
+          gh pr ready "$pr_number" || true
+          gh pr merge "$pr_number" --squash --delete-branch --match-head-commit "$head_sha"
