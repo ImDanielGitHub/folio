@@ -17,6 +17,4 @@ export function isTrustedRendererUrl(candidate: string, developmentUrl?: string 
   }
 }
 
-export function isValidArtifactId(value: unknown): value is string {
-  return typeof value === "string" && /^[a-z][a-z0-9]{1,15}_[a-z0-9][a-z0-9_]{2,95}$/.test(value);
-}
+export { isValidArtifactId } from "../artifact.js";

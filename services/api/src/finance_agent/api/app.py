@@ -94,6 +94,7 @@ def create_app(
         allow_credentials=False,
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["Content-Type", "Last-Event-ID", "X-Folio-Session"],
+        expose_headers=["ETag"],
     )
     value.add_middleware(
         TrustedHostMiddleware,

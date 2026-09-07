@@ -58,3 +58,42 @@ jobs:
 
       - name: Run the repository verification gate
         run: pnpm verify
+
+  macos-runtime:
+    name: Verify native macOS runtime with synthetic data
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.0"
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile && uv sync --project services/api --frozen
+      - name: Build real desktop application
+        run: pnpm build
+      - name: Exercise packaged-origin application and authenticated artefact IPC
+        env:
+          FOLIO_SMOKE_EVIDENCE: ${{ runner.temp }}/folio-native-receipt.json
+        run: node apps/desktop/tests/native-runtime-smoke.mjs
+      - name: Preserve synthetic runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: folio-macos-runtime
+          path: ${{ runner.temp }}/folio-native-receipt.json*
+          if-no-files-found: warn
+          retention-days: 7

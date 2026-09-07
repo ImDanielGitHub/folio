@@ -176,7 +176,7 @@ class SessionAuthMiddleware:
             return
         path = str(scope.get("path", ""))
         method = str(scope.get("method", "GET")).upper()
-        if method == "OPTIONS" or path == "/health" or path.startswith("/v1/artifacts/"):
+        if method == "OPTIONS" or path == "/health":
             await self.app(scope, receive, send)
             return
         supplied = Headers(scope=scope).get("x-folio-session") or ""
