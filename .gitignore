@@ -26,7 +26,7 @@ var/
 *.sqlite
 *.sqlite3
 *.db
-artifacts/
+/artifacts/
 
 # Editors and operating systems
 .DS_Store
