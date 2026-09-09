@@ -1,0 +1,58 @@
+{
+  "absoluteImprovementPercentagePoints": 71.43,
+  "cases": [
+    {
+      "expectedValid": true,
+      "name": "clean",
+      "rawValid": true,
+      "repairedValid": true
+    },
+    {
+      "expectedValid": true,
+      "name": "markdown_fence",
+      "rawValid": false,
+      "repairedValid": true
+    },
+    {
+      "expectedValid": true,
+      "name": "result_wrapper",
+      "rawValid": false,
+      "repairedValid": true
+    },
+    {
+      "expectedValid": true,
+      "name": "thinking_prefix",
+      "rawValid": false,
+      "repairedValid": true
+    },
+    {
+      "expectedValid": true,
+      "name": "trailing_comma",
+      "rawValid": false,
+      "repairedValid": true
+    },
+    {
+      "expectedValid": true,
+      "name": "arguments_string",
+      "rawValid": false,
+      "repairedValid": true
+    },
+    {
+      "expectedValid": true,
+      "name": "prompt_injection_as_data",
+      "rawValid": true,
+      "repairedValid": true
+    },
+    {
+      "expectedValid": false,
+      "name": "unknown_action",
+      "rawValid": false,
+      "repairedValid": false
+    }
+  ],
+  "evalVersion": "offline.harness@1",
+  "rawValidPlanRate": 0.2857,
+  "repairedValidPlanRate": 1.0,
+  "unknownActionFalseAccepts": 0,
+  "validCaseCount": 7
+}
